@@ -47,6 +47,15 @@ function calcularQuantidadeDias(dataRetirada, dataDevolucao) {
   return diffDias > 0 ? diffDias : 0;
 }
 
+function agruparPorCategoria(equipamentos) {
+  return equipamentos.reduce((acc, equipamento) => {
+    const categoria = equipamento.categoria || "Outros";
+    if (!acc[categoria]) acc[categoria] = [];
+    acc[categoria].push(equipamento);
+    return acc;
+  }, {});
+}
+
 export default function SolicitarLocacao() {
   const ativoRef = useRef(true);
 
@@ -59,10 +68,14 @@ export default function SolicitarLocacao() {
   const [erro, setErro] = useState("");
   const [mensagem, setMensagem] = useState("");
 
-  const [modalEquipamentosAberto, setModalEquipamentosAberto] = useState(false);
+  const [modalEquipamentosAberto, setModalEquipamentosAberto] =
+    useState(false);
   const [equipamentoModalSelecionado, setEquipamentoModalSelecionado] =
     useState(null);
   const [quantidadeModal, setQuantidadeModal] = useState("1");
+  const [tamanhoModal, setTamanhoModal] = useState("");
+  const [numeracaoModal, setNumeracaoModal] = useState("");
+  const [categoriaSelecionada, setCategoriaSelecionada] = useState("");
 
   const quantidadeDias = useMemo(() => {
     return calcularQuantidadeDias(form.data_retirada, form.data_devolucao);
@@ -71,6 +84,23 @@ export default function SolicitarLocacao() {
   const totalLocacao = useMemo(() => {
     return itens.reduce((acc, item) => acc + Number(item.subtotal || 0), 0);
   }, [itens]);
+
+  const categorias = useMemo(() => {
+    return [...new Set(equipamentos.map((eq) => eq.categoria).filter(Boolean))].sort(
+      (a, b) => a.localeCompare(b)
+    );
+  }, [equipamentos]);
+
+  const equipamentosFiltrados = useMemo(() => {
+    if (!categoriaSelecionada) return equipamentos;
+    return equipamentos.filter(
+      (equipamento) => equipamento.categoria === categoriaSelecionada
+    );
+  }, [equipamentos, categoriaSelecionada]);
+
+  const equipamentosPorCategoria = useMemo(() => {
+    return agruparPorCategoria(equipamentosFiltrados);
+  }, [equipamentosFiltrados]);
 
   useEffect(() => {
     ativoRef.current = true;
@@ -93,8 +123,9 @@ export default function SolicitarLocacao() {
           .from("equipamentos")
           .select("*")
           .eq("ativo", true)
+          .order("categoria", { ascending: true })
           .order("nome", { ascending: true }),
-        30000,
+        30000
       );
 
       if (error) throw error;
@@ -130,9 +161,7 @@ export default function SolicitarLocacao() {
     setItens([]);
     setErro("");
     setMensagem("");
-    setEquipamentoModalSelecionado(null);
-    setQuantidadeModal("1");
-    setModalEquipamentosAberto(false);
+    fecharModalEquipamentos();
   }
 
   function abrirModalEquipamentos() {
@@ -141,7 +170,7 @@ export default function SolicitarLocacao() {
 
     if (!form.data_retirada || !form.data_devolucao) {
       setErro(
-        "Informe a data de retirada e a data de devolução antes de adicionar equipamentos.",
+        "Informe a data de retirada e a data de devolução antes de adicionar equipamentos."
       );
       return;
     }
@@ -158,6 +187,22 @@ export default function SolicitarLocacao() {
     setModalEquipamentosAberto(false);
     setEquipamentoModalSelecionado(null);
     setQuantidadeModal("1");
+    setTamanhoModal("");
+    setNumeracaoModal("");
+  }
+
+  function selecionarEquipamento(equipamento) {
+    setEquipamentoModalSelecionado(equipamento);
+    setQuantidadeModal("1");
+    setTamanhoModal("");
+    setNumeracaoModal("");
+  }
+
+  function voltarAoCatalogo() {
+    setEquipamentoModalSelecionado(null);
+    setQuantidadeModal("1");
+    setTamanhoModal("");
+    setNumeracaoModal("");
   }
 
   function adicionarItemDoModal() {
@@ -171,18 +216,6 @@ export default function SolicitarLocacao() {
 
     const quantidade = Number(String(quantidadeModal).replace(",", ".").trim());
 
-    if (!form.data_retirada || !form.data_devolucao) {
-      setErro(
-        "Informe a data de retirada e a data de devolução antes de adicionar equipamentos.",
-      );
-      return;
-    }
-
-    if (quantidadeDias <= 0) {
-      setErro("A data de devolução deve ser maior que a data de retirada.");
-      return;
-    }
-
     if (
       Number.isNaN(quantidade) ||
       quantidade <= 0 ||
@@ -192,63 +225,51 @@ export default function SolicitarLocacao() {
       return;
     }
 
-    const itemExistente = itens.find(
-      (item) =>
-        String(item.equipamento_id) === String(equipamentoModalSelecionado.id),
-    );
+    if (equipamentoModalSelecionado.usa_tamanho && !tamanhoModal.trim()) {
+      setErro("Informe o tamanho.");
+      return;
+    }
+
+    if (
+      equipamentoModalSelecionado.usa_numeracao &&
+      !numeracaoModal.trim()
+    ) {
+      setErro("Informe a numeração.");
+      return;
+    }
 
     const subtotalNovoItem =
       quantidade *
       Number(equipamentoModalSelecionado.valor_diaria) *
       quantidadeDias;
 
-    if (itemExistente) {
-      const atualizados = itens.map((item) => {
-        if (
-          String(item.equipamento_id) !== String(equipamentoModalSelecionado.id)
-        ) {
-          return item;
-        }
+    setItens((prev) => [
+      ...prev,
+      {
+        uid: crypto.randomUUID(),
+        equipamento_id: equipamentoModalSelecionado.id,
+        equipamento_nome: equipamentoModalSelecionado.nome,
+        imagem_url: equipamentoModalSelecionado.imagem_url || "",
+        categoria: equipamentoModalSelecionado.categoria || "Outros",
+        quantidade,
+        valor_diaria: Number(equipamentoModalSelecionado.valor_diaria),
+        quantidade_dias: quantidadeDias,
+        subtotal: subtotalNovoItem,
+        tamanho: equipamentoModalSelecionado.usa_tamanho
+          ? tamanhoModal.trim()
+          : null,
+        numeracao: equipamentoModalSelecionado.usa_numeracao
+          ? numeracaoModal.trim()
+          : null,
+      },
+    ]);
 
-        const novaQuantidade = Number(item.quantidade) + quantidade;
-        const novoSubtotal =
-          novaQuantidade *
-          Number(item.valor_diaria) *
-          Number(item.quantidade_dias);
-
-        return {
-          ...item,
-          quantidade: novaQuantidade,
-          subtotal: novoSubtotal,
-        };
-      });
-
-      setItens(atualizados);
-    } else {
-      setItens((prev) => [
-        ...prev,
-        {
-          equipamento_id: equipamentoModalSelecionado.id,
-          equipamento_nome: equipamentoModalSelecionado.nome,
-          imagem_url: equipamentoModalSelecionado.imagem_url || "",
-          quantidade,
-          valor_diaria: Number(equipamentoModalSelecionado.valor_diaria),
-          quantidade_dias: quantidadeDias,
-          subtotal: subtotalNovoItem,
-        },
-      ]);
-    }
-
-    setQuantidadeModal("1");
-    setEquipamentoModalSelecionado(null);
     setMensagem("Equipamento adicionado ao carrinho.");
+    voltarAoCatalogo();
   }
-  function removerItem(equipamentoId) {
-    setItens((prev) =>
-      prev.filter(
-        (item) => String(item.equipamento_id) !== String(equipamentoId),
-      ),
-    );
+
+  function removerItem(uid) {
+    setItens((prev) => prev.filter((item) => item.uid !== uid));
   }
 
   async function buscarOuCriarCliente() {
@@ -260,7 +281,7 @@ export default function SolicitarLocacao() {
         .select("*")
         .eq("telefone", telefoneLimpo)
         .maybeSingle(),
-      30000,
+      30000
     );
 
     if (erroBusca) throw erroBusca;
@@ -278,7 +299,7 @@ export default function SolicitarLocacao() {
         })
         .select()
         .single(),
-      30000,
+      30000
     );
 
     if (erroCriacao) throw erroCriacao;
@@ -337,7 +358,7 @@ export default function SolicitarLocacao() {
           })
           .select()
           .single(),
-        30000,
+        30000
       );
 
       if (error) throw error;
@@ -351,18 +372,20 @@ export default function SolicitarLocacao() {
         valor_diaria: item.valor_diaria,
         quantidade_dias: item.quantidade_dias,
         subtotal: item.subtotal,
+        tamanho: item.tamanho,
+        numeracao: item.numeracao,
       }));
 
       const { error: erroItens } = await withTimeout(
         supabase.from("itens_locacao").insert(itensParaSalvar),
-        30000,
+        30000
       );
 
       if (erroItens) throw erroItens;
 
       if (ativoRef.current) {
         setMensagem(
-          "Solicitação enviada com sucesso! Em breve entraremos em contato.",
+          "Solicitação enviada com sucesso! Em breve entraremos em contato."
         );
         setForm(FORM_INICIAL);
         setItens([]);
@@ -377,7 +400,7 @@ export default function SolicitarLocacao() {
               .from("itens_locacao")
               .delete()
               .eq("locacao_id", locacaoCriada.id),
-            5000,
+            5000
           );
         } catch (rollbackItensErr) {
           console.error("Erro ao desfazer itens da locação:", rollbackItensErr);
@@ -386,7 +409,7 @@ export default function SolicitarLocacao() {
         try {
           await withTimeout(
             supabase.from("locacoes").delete().eq("id", locacaoCriada.id),
-            5000,
+            5000
           );
         } catch (rollbackLocacaoErr) {
           console.error("Erro ao desfazer locação:", rollbackLocacaoErr);
@@ -404,13 +427,13 @@ export default function SolicitarLocacao() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-100 p-4 sm:p-6">
-      <div className="mx-auto max-w-7xl space-y-6">
-        <div className="rounded-3xl bg-white p-6 shadow-sm">
-          <h1 className="text-3xl font-bold text-slate-800">
+    <div className="min-h-screen bg-slate-100 p-3 sm:p-6">
+      <div className="mx-auto max-w-7xl space-y-4 sm:space-y-6">
+        <div className="rounded-3xl bg-white p-5 shadow-sm sm:p-6">
+          <h1 className="text-2xl font-bold text-slate-800 sm:text-3xl">
             Solicitar locação
           </h1>
-          <p className="mt-2 text-slate-600">
+          <p className="mt-2 text-sm text-slate-600 sm:text-base">
             Escolha os equipamentos, informe as datas e envie sua solicitação.
           </p>
         </div>
@@ -427,9 +450,9 @@ export default function SolicitarLocacao() {
           </div>
         )}
 
-        <div className="grid gap-6 xl:grid-cols-[420px_1fr]">
-          <div className="rounded-2xl bg-white p-6 shadow-sm">
-            <h2 className="text-xl font-semibold text-slate-800">
+        <div className="grid gap-4 xl:grid-cols-[420px_1fr]">
+          <div className="rounded-2xl bg-white p-5 shadow-sm sm:p-6">
+            <h2 className="text-lg font-semibold text-slate-800 sm:text-xl">
               Seus dados e locação
             </h2>
 
@@ -575,45 +598,61 @@ export default function SolicitarLocacao() {
             </form>
           </div>
 
-          <div className="rounded-2xl bg-white p-6 shadow-sm max-h-[60vh] md:h-[70vh] md:max-h-none flex flex-col">
-            <h2 className="text-xl font-semibold text-slate-800">
+          <div className="rounded-2xl bg-white p-5 shadow-sm sm:p-6 max-h-[60vh] md:h-[70vh] md:max-h-none flex flex-col">
+            <h2 className="text-lg font-semibold text-slate-800 sm:text-xl">
               Carrinho da locação
             </h2>
 
             {itens.length === 0 ? (
-              <div className="mt-6 rounded-2xl border border-dashed border-slate-300 p-6 text-slate-500">
+              <div className="mt-6 rounded-2xl border border-dashed border-slate-300 p-6 text-sm text-slate-500">
                 Nenhum equipamento adicionado.
               </div>
             ) : (
-              <div className="mt-6 flex-1 space-y-4 overflow-y-auto pr-2">
+              <div className="mt-6 flex-1 space-y-3 overflow-y-auto pr-2">
                 {itens.map((item) => (
                   <div
-                    key={item.equipamento_id}
-                    className="rounded-2xl border border-slate-200 p-4"
+                    key={item.uid}
+                    className="rounded-2xl border border-slate-200 p-3 sm:p-4"
                   >
-                    <div className="flex gap-4">
+                    <div className="flex gap-3">
                       {item.imagem_url ? (
                         <img
                           src={item.imagem_url}
                           alt={item.equipamento_nome}
-                          className="h-24 w-24 rounded-xl object-cover"
+                          className="h-20 w-20 rounded-xl bg-slate-100 object-contain p-1"
                         />
                       ) : (
-                        <div className="flex h-24 w-24 items-center justify-center rounded-xl bg-slate-100 text-xs text-slate-500">
+                        <div className="flex h-20 w-20 items-center justify-center rounded-xl bg-slate-100 text-xs text-slate-500">
                           Sem imagem
                         </div>
                       )}
 
-                      <div className="flex-1">
-                        <h3 className="text-lg font-semibold text-slate-800">
+                      <div className="flex-1 min-w-0">
+                        <h3 className="truncate text-base font-semibold text-slate-800">
                           {item.equipamento_nome}
                         </h3>
+                        <p className="text-sm text-slate-600">
+                          Categoria: {item.categoria}
+                        </p>
                         <p className="text-sm text-slate-600">
                           Quantidade: {item.quantidade}
                         </p>
                         <p className="text-sm text-slate-600">
                           Diárias: {item.quantidade_dias}
                         </p>
+
+                        {item.tamanho && (
+                          <p className="text-sm text-slate-600">
+                            Tamanho: {item.tamanho}
+                          </p>
+                        )}
+
+                        {item.numeracao && (
+                          <p className="text-sm text-slate-600">
+                            Numeração: {item.numeracao}
+                          </p>
+                        )}
+
                         <p className="text-sm text-slate-600">
                           Valor da diária: {formatarMoeda(item.valor_diaria)}
                         </p>
@@ -623,7 +662,7 @@ export default function SolicitarLocacao() {
 
                         <button
                           type="button"
-                          onClick={() => removerItem(item.equipamento_id)}
+                          onClick={() => removerItem(item.uid)}
                           className="mt-3 rounded-xl bg-red-500 px-4 py-2 text-sm font-medium text-white hover:bg-red-600"
                         >
                           Remover
@@ -638,152 +677,206 @@ export default function SolicitarLocacao() {
         </div>
       </div>
 
-{modalEquipamentosAberto && (
-  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-    <div className="relative flex max-h-[90vh] w-full max-w-5xl flex-col rounded-2xl bg-white p-6 shadow-xl">
-      <button
-        type="button"
-        onClick={fecharModalEquipamentos}
-        className="absolute right-4 top-4 rounded-lg bg-slate-100 px-3 py-1 text-sm font-medium text-slate-700 hover:bg-slate-200"
-      >
-        Fechar
-      </button>
+      {modalEquipamentosAberto && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-3">
+          <div className="relative flex h-[92vh] w-full max-w-5xl flex-col rounded-2xl bg-white p-4 shadow-xl sm:p-6">
+            <button
+              type="button"
+              onClick={fecharModalEquipamentos}
+              className="absolute right-3 top-3 rounded-lg bg-slate-100 px-3 py-1 text-sm font-medium text-slate-700 hover:bg-slate-200"
+            >
+              Fechar
+            </button>
 
-      <h3 className="mb-4 pr-16 text-2xl font-bold text-slate-800">
-        Escolher equipamentos
-      </h3>
+            <h3 className="mb-4 pr-16 text-xl font-bold text-slate-800 sm:text-2xl">
+              Escolher equipamentos
+            </h3>
 
-      <div className="grid flex-1 gap-6 overflow-hidden lg:grid-cols-[1fr_320px]">
-        <div className="overflow-y-auto pr-2">
-          {carregando ? (
-            <div className="text-slate-600">Carregando equipamentos...</div>
-          ) : equipamentos.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-slate-300 p-6 text-slate-500">
-              Nenhum equipamento disponível no momento.
-            </div>
-          ) : (
-            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-              {equipamentos.map((equipamento) => (
-                <button
-                  key={equipamento.id}
-                  type="button"
-                  onClick={() => setEquipamentoModalSelecionado(equipamento)}
-                  className={`rounded-2xl border p-4 text-left transition ${
-                    equipamentoModalSelecionado?.id === equipamento.id
-                      ? "border-emerald-500 ring-2 ring-emerald-100"
-                      : "border-slate-200 hover:border-slate-300"
-                  }`}
-                >
-                  {equipamento.imagem_url ? (
-                    <img
-                      src={equipamento.imagem_url}
-                      alt={equipamento.nome}
-                      className="mb-3 h-40 w-full rounded-xl bg-slate-100 object-contain p-2"
-                    />
-                  ) : (
-                    <div className="mb-3 flex h-40 w-full items-center justify-center rounded-xl bg-slate-100 text-sm text-slate-500">
-                      Sem imagem
-                    </div>
-                  )}
-
-                  <h4 className="text-lg font-semibold text-slate-800">
-                    {equipamento.nome}
-                  </h4>
-
-                  <p className="mt-1 text-sm text-slate-600">
-                    {formatarMoeda(equipamento.valor_diaria)} por dia
-                  </p>
-
-                  <p className="mt-2 text-sm text-slate-500">
-                    {equipamento.descricao || "Sem descrição"}
-                  </p>
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-
-        <div className="rounded-2xl border border-slate-200 p-4 max-h-[40vh] overflow-y-auto lg:max-h-none">
-          <div className="flex items-center justify-between gap-3">
-            <h4 className="text-lg font-semibold text-slate-800">
-              Detalhes
-            </h4>
-
-            {equipamentoModalSelecionado && (
-              <button
-                type="button"
-                onClick={() => {
+            <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center">
+              <select
+                value={categoriaSelecionada}
+                onChange={(e) => {
+                  setCategoriaSelecionada(e.target.value);
                   setEquipamentoModalSelecionado(null);
-                  setQuantidadeModal("1");
                 }}
-                className="rounded-xl border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                className="rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-700 outline-none focus:border-emerald-500"
               >
-                Voltar ao catálogo
-              </button>
-            )}
-          </div>
+                <option value="">Todas as categorias</option>
+                {categorias.map((categoria) => (
+                  <option key={categoria} value={categoria}>
+                    {categoria}
+                  </option>
+                ))}
+              </select>
 
-          {!equipamentoModalSelecionado ? (
-            <p className="mt-4 text-sm text-slate-500">
-              Selecione um equipamento para ver os detalhes.
-            </p>
-          ) : (
-            <div className="mt-4 space-y-4">
-              {equipamentoModalSelecionado.imagem_url ? (
-                <img
-                  src={equipamentoModalSelecionado.imagem_url}
-                  alt={equipamentoModalSelecionado.nome}
-                  className="h-48 w-full rounded-xl bg-slate-100 object-contain p-2"
-                />
-              ) : (
-                <div className="flex h-48 w-full items-center justify-center rounded-xl bg-slate-100 text-sm text-slate-500">
-                  Sem imagem
-                </div>
+              {equipamentoModalSelecionado && (
+                <button
+                  type="button"
+                  onClick={voltarAoCatalogo}
+                  className="rounded-xl border border-slate-300 px-4 py-3 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                >
+                  Voltar ao catálogo
+                </button>
               )}
-
-              <div>
-                <h5 className="text-xl font-bold text-slate-800">
-                  {equipamentoModalSelecionado.nome}
-                </h5>
-                <p className="mt-1 text-sm text-slate-600">
-                  {formatarMoeda(equipamentoModalSelecionado.valor_diaria)} por dia
-                </p>
-                <p className="mt-2 text-sm text-slate-500">
-                  {equipamentoModalSelecionado.descricao || "Sem descrição"}
-                </p>
-              </div>
-
-              <div>
-                <label className="mb-1 block text-sm font-medium text-slate-700">
-                  Quantidade
-                </label>
-                <input
-                  type="text"
-                  value={quantidadeModal}
-                  onChange={(e) => setQuantidadeModal(e.target.value)}
-                  className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-emerald-500"
-                  placeholder="1"
-                />
-              </div>
-
-              <div className="rounded-xl bg-slate-50 px-4 py-3 text-sm text-slate-600">
-                Diárias: {quantidadeDias}
-              </div>
-
-              <button
-                type="button"
-                onClick={adicionarItemDoModal}
-                className="w-full rounded-xl bg-emerald-500 px-4 py-3 font-semibold text-white hover:bg-emerald-600"
-              >
-                Adicionar ao carrinho
-              </button>
             </div>
-          )}
+
+            <div className="grid flex-1 gap-4 overflow-hidden lg:grid-cols-[1fr_300px]">
+              <div className="overflow-y-auto pr-1">
+                {carregando ? (
+                  <div className="text-slate-600">Carregando equipamentos...</div>
+                ) : equipamentosFiltrados.length === 0 ? (
+                  <div className="rounded-2xl border border-dashed border-slate-300 p-6 text-slate-500">
+                    Nenhum equipamento disponível no momento.
+                  </div>
+                ) : equipamentoModalSelecionado ? null : (
+                  <div className="space-y-5">
+                    {Object.entries(equipamentosPorCategoria).map(
+                      ([categoria, itensCategoria]) => (
+                        <div key={categoria}>
+                          <h4 className="mb-3 text-base font-semibold text-slate-800">
+                            {categoria}
+                          </h4>
+
+                          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3">
+                            {itensCategoria.map((equipamento) => (
+                              <button
+                                key={equipamento.id}
+                                type="button"
+                                onClick={() => selecionarEquipamento(equipamento)}
+                                className="rounded-2xl border border-slate-200 p-3 text-left transition hover:border-slate-300"
+                              >
+                                <div className="mb-3 flex h-24 items-center justify-center rounded-xl bg-slate-100 p-2">
+                                  {equipamento.imagem_url ? (
+                                    <img
+                                      src={equipamento.imagem_url}
+                                      alt={equipamento.nome}
+                                      className="h-full w-full object-contain"
+                                    />
+                                  ) : (
+                                    <span className="text-xs text-slate-500">
+                                      Sem imagem
+                                    </span>
+                                  )}
+                                </div>
+
+                                <h5 className="line-clamp-2 text-sm font-semibold text-slate-800">
+                                  {equipamento.nome}
+                                </h5>
+
+                                <p className="mt-1 text-sm text-slate-600">
+                                  {formatarMoeda(equipamento.valor_diaria)} por dia
+                                </p>
+
+                                <p className="mt-1 line-clamp-2 text-xs text-slate-500">
+                                  {equipamento.descricao || "Sem descrição"}
+                                </p>
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )
+                    )}
+                  </div>
+                )}
+              </div>
+
+              <div className="rounded-2xl border border-slate-200 p-4 overflow-y-auto">
+                {!equipamentoModalSelecionado ? (
+                  <div className="flex h-full items-center justify-center text-center text-sm text-slate-500">
+                    Selecione um equipamento no catálogo para ver os detalhes.
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    <div className="flex h-32 items-center justify-center rounded-xl bg-slate-100 p-2">
+                      {equipamentoModalSelecionado.imagem_url ? (
+                        <img
+                          src={equipamentoModalSelecionado.imagem_url}
+                          alt={equipamentoModalSelecionado.nome}
+                          className="h-full w-full object-contain"
+                        />
+                      ) : (
+                        <span className="text-sm text-slate-500">
+                          Sem imagem
+                        </span>
+                      )}
+                    </div>
+
+                    <div>
+                      <h5 className="text-lg font-bold text-slate-800">
+                        {equipamentoModalSelecionado.nome}
+                      </h5>
+                      <p className="mt-1 text-sm text-slate-600">
+                        Categoria: {equipamentoModalSelecionado.categoria || "Outros"}
+                      </p>
+                      <p className="mt-1 text-sm text-slate-600">
+                        {formatarMoeda(equipamentoModalSelecionado.valor_diaria)} por dia
+                      </p>
+                      <p className="mt-2 text-sm text-slate-500">
+                        {equipamentoModalSelecionado.descricao || "Sem descrição"}
+                      </p>
+                    </div>
+
+                    <div>
+                      <label className="mb-1 block text-sm font-medium text-slate-700">
+                        Quantidade
+                      </label>
+                      <input
+                        type="text"
+                        value={quantidadeModal}
+                        onChange={(e) => setQuantidadeModal(e.target.value)}
+                        className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-emerald-500"
+                        placeholder="1"
+                      />
+                    </div>
+
+                    {equipamentoModalSelecionado.usa_tamanho && (
+                      <div>
+                        <label className="mb-1 block text-sm font-medium text-slate-700">
+                          Tamanho
+                        </label>
+                        <input
+                          type="text"
+                          value={tamanhoModal}
+                          onChange={(e) => setTamanhoModal(e.target.value)}
+                          className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-emerald-500"
+                          placeholder="Ex: P, M, G, GG"
+                        />
+                      </div>
+                    )}
+
+                    {equipamentoModalSelecionado.usa_numeracao && (
+                      <div>
+                        <label className="mb-1 block text-sm font-medium text-slate-700">
+                          Numeração
+                        </label>
+                        <input
+                          type="text"
+                          value={numeracaoModal}
+                          onChange={(e) => setNumeracaoModal(e.target.value)}
+                          className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-emerald-500"
+                          placeholder="Ex: 38, 39, 40"
+                        />
+                      </div>
+                    )}
+
+                    <div className="rounded-xl bg-slate-50 px-4 py-3 text-sm text-slate-600">
+                      Diárias: {quantidadeDias}
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={adicionarItemDoModal}
+                      className="w-full rounded-xl bg-emerald-500 px-4 py-3 font-semibold text-white hover:bg-emerald-600"
+                    >
+                      Adicionar ao carrinho
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
         </div>
-      </div>
-    </div>
-  </div>
-)}
+      )}
     </div>
   );
 }

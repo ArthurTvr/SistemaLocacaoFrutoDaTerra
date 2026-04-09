@@ -5,9 +5,12 @@ import { withTimeout } from "../lib/withTimeout";
 const estadoInicial = {
   nome: "",
   descricao: "",
+  categoria: "",
   valor_diaria: "",
   quantidade_total: "",
   imagem_url: "",
+  usa_tamanho: false,
+  usa_numeracao: false,
   ativo: true,
 };
 
@@ -26,8 +29,9 @@ function formatarMoeda(valor) {
   });
 }
 
-export default function Equipamentos() {
+export default function EquipamentosPage() {
   const ativoRef = useRef(true);
+
   const [imagemModal, setImagemModal] = useState(null);
   const [equipamentos, setEquipamentos] = useState([]);
   const [form, setForm] = useState(estadoInicial);
@@ -57,8 +61,9 @@ export default function Equipamentos() {
         supabase
           .from("equipamentos")
           .select("*")
-          .order("id", { ascending: false }),
-        15000,
+          .order("categoria", { ascending: true })
+          .order("nome", { ascending: true }),
+        15000
       );
 
       if (error) throw error;
@@ -93,6 +98,7 @@ export default function Equipamentos() {
     setForm(estadoInicial);
     setEquipamentoEditando(null);
     setErro("");
+    setMensagem("");
   }
 
   function iniciarEdicao(equipamento) {
@@ -100,9 +106,12 @@ export default function Equipamentos() {
     setForm({
       nome: equipamento.nome || "",
       descricao: equipamento.descricao || "",
+      categoria: equipamento.categoria || "",
       valor_diaria: String(equipamento.valor_diaria ?? ""),
       quantidade_total: String(equipamento.quantidade_total ?? ""),
       imagem_url: equipamento.imagem_url || "",
+      usa_tamanho: Boolean(equipamento.usa_tamanho),
+      usa_numeracao: Boolean(equipamento.usa_numeracao),
       ativo: Boolean(equipamento.ativo),
     });
     setErro("");
@@ -113,15 +122,20 @@ export default function Equipamentos() {
     e.preventDefault();
 
     const valorDiariaNumero = Number(
-      String(form.valor_diaria).replace(",", ".").trim(),
+      String(form.valor_diaria).replace(",", ".").trim()
     );
 
     const quantidadeTotalNumero = Number(
-      String(form.quantidade_total).replace(",", ".").trim(),
+      String(form.quantidade_total).replace(",", ".").trim()
     );
 
     if (!form.nome.trim()) {
       setErro("Informe o nome do equipamento.");
+      return;
+    }
+
+    if (!form.categoria.trim()) {
+      setErro("Informe a categoria do equipamento.");
       return;
     }
 
@@ -144,20 +158,25 @@ export default function Equipamentos() {
     setMensagem("");
 
     try {
+      const payload = {
+        nome: form.nome.trim(),
+        descricao: form.descricao.trim() || null,
+        categoria: form.categoria.trim(),
+        valor_diaria: valorDiariaNumero,
+        quantidade_total: quantidadeTotalNumero,
+        imagem_url: form.imagem_url.trim() || null,
+        usa_tamanho: form.usa_tamanho,
+        usa_numeracao: form.usa_numeracao,
+        ativo: form.ativo,
+      };
+
       if (equipamentoEditando) {
         const { error } = await withTimeout(
           supabase
             .from("equipamentos")
-            .update({
-              nome: form.nome.trim(),
-              descricao: form.descricao.trim() || null,
-              valor_diaria: valorDiariaNumero,
-              quantidade_total: quantidadeTotalNumero,
-              imagem_url: form.imagem_url.trim() || null,
-              ativo: form.ativo,
-            })
+            .update(payload)
             .eq("id", equipamentoEditando.id),
-          15000,
+          15000
         );
 
         if (error) throw error;
@@ -167,18 +186,8 @@ export default function Equipamentos() {
         }
       } else {
         const { error } = await withTimeout(
-          supabase
-            .from("equipamentos")
-            .insert({
-              nome: form.nome.trim(),
-              descricao: form.descricao.trim() || null,
-              valor_diaria: valorDiariaNumero,
-              quantidade_total: quantidadeTotalNumero,
-              imagem_url: form.imagem_url.trim() || null,
-              ativo: form.ativo,
-            })
-            .select(),
-          15000,
+          supabase.from("equipamentos").insert(payload).select(),
+          15000
         );
 
         if (error) throw error;
@@ -208,7 +217,7 @@ export default function Equipamentos() {
 
   async function excluirEquipamento(id) {
     const confirmar = window.confirm(
-      "Deseja realmente excluir este equipamento?",
+      "Deseja realmente excluir este equipamento?"
     );
     if (!confirmar) return;
 
@@ -218,7 +227,7 @@ export default function Equipamentos() {
     try {
       const { error } = await withTimeout(
         supabase.from("equipamentos").delete().eq("id", id),
-        15000,
+        15000
       );
 
       if (error) throw error;
@@ -264,6 +273,22 @@ export default function Equipamentos() {
                 onChange={handleChange}
                 className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-emerald-500"
                 placeholder="Nome do equipamento"
+                required
+                disabled={salvando}
+              />
+            </div>
+
+            <div>
+              <label className="mb-1 block text-sm font-medium text-slate-700">
+                Categoria
+              </label>
+              <input
+                type="text"
+                name="categoria"
+                value={form.categoria}
+                onChange={handleChange}
+                className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-emerald-500"
+                placeholder="Ex: Barracas, Botas, Blusas..."
                 required
                 disabled={salvando}
               />
@@ -332,6 +357,32 @@ export default function Equipamentos() {
             <label className="flex items-center gap-3 rounded-xl border border-slate-200 px-4 py-3">
               <input
                 type="checkbox"
+                name="usa_tamanho"
+                checked={form.usa_tamanho}
+                onChange={handleChange}
+                disabled={salvando}
+              />
+              <span className="text-sm font-medium text-slate-700">
+                Este item usa tamanho
+              </span>
+            </label>
+
+            <label className="flex items-center gap-3 rounded-xl border border-slate-200 px-4 py-3">
+              <input
+                type="checkbox"
+                name="usa_numeracao"
+                checked={form.usa_numeracao}
+                onChange={handleChange}
+                disabled={salvando}
+              />
+              <span className="text-sm font-medium text-slate-700">
+                Este item usa numeração
+              </span>
+            </label>
+
+            <label className="flex items-center gap-3 rounded-xl border border-slate-200 px-4 py-3">
+              <input
+                type="checkbox"
                 name="ativo"
                 checked={form.ativo}
                 onChange={handleChange}
@@ -363,8 +414,8 @@ export default function Equipamentos() {
                 {salvando
                   ? "Salvando..."
                   : equipamentoEditando
-                    ? "Atualizar"
-                    : "Cadastrar"}
+                  ? "Atualizar"
+                  : "Cadastrar"}
               </button>
 
               <button
@@ -395,9 +446,7 @@ export default function Equipamentos() {
           </div>
 
           {carregando ? (
-            <div className="mt-6 text-slate-600">
-              Carregando equipamentos...
-            </div>
+            <div className="mt-6 text-slate-600">Carregando equipamentos...</div>
           ) : equipamentos.length === 0 ? (
             <div className="mt-6 rounded-2xl border border-dashed border-slate-300 p-6 text-slate-500">
               Nenhum equipamento cadastrado.
@@ -427,11 +476,16 @@ export default function Equipamentos() {
                           </button>
                         </div>
                       )}
+
                       <h3 className="text-lg font-semibold text-slate-800">
                         {equipamento.nome}
                       </h3>
 
                       <p className="mt-1 text-sm text-slate-600">
+                        Categoria: {equipamento.categoria || "-"}
+                      </p>
+
+                      <p className="text-sm text-slate-600">
                         Diária: {formatarMoeda(equipamento.valor_diaria)}
                       </p>
 
@@ -444,15 +498,29 @@ export default function Equipamentos() {
                         {equipamento.descricao || "Sem descrição"}
                       </p>
 
-                      <p
-                        className={`mt-2 inline-flex rounded-full px-3 py-1 text-xs font-semibold ${
-                          equipamento.ativo
-                            ? "bg-emerald-50 text-emerald-700"
-                            : "bg-red-50 text-red-700"
-                        }`}
-                      >
-                        {equipamento.ativo ? "Ativo" : "Inativo"}
-                      </p>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {equipamento.usa_tamanho && (
+                          <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">
+                            Usa tamanho (P, M, G, GG)
+                          </span>
+                        )}
+
+                        {equipamento.usa_numeracao && (
+                          <span className="rounded-full bg-violet-50 px-3 py-1 text-xs font-semibold text-violet-700">
+                            Usa numeração (34, 35, 36...)
+                          </span>
+                        )}
+
+                        <span
+                          className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                            equipamento.ativo
+                              ? "bg-emerald-50 text-emerald-700"
+                              : "bg-red-50 text-red-700"
+                          }`}
+                        >
+                          {equipamento.ativo ? "Ativo" : "Inativo"}
+                        </span>
+                      </div>
                     </div>
 
                     <div className="flex gap-2">
@@ -477,8 +545,9 @@ export default function Equipamentos() {
           )}
         </div>
       </div>
+
       {imagemModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
           <div className="relative w-full max-w-3xl rounded-2xl bg-white p-4 shadow-xl">
             <button
               type="button"
@@ -495,7 +564,7 @@ export default function Equipamentos() {
             <img
               src={imagemModal.url}
               alt={imagemModal.nome}
-              className="max-h-[75vh] w-full rounded-xl object-contain"
+              className="max-h-[75vh] w-full rounded-xl bg-slate-100 object-contain p-2"
             />
           </div>
         </div>
@@ -503,4 +572,3 @@ export default function Equipamentos() {
     </div>
   );
 }
-// att o git
