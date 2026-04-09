@@ -27,7 +27,7 @@ function formatarMoeda(valor) {
 
 function formatarData(data) {
   if (!data) return "-";
-  return new Date(data).toLocaleDateString("pt-BR");
+  return new Date(`${data}T00:00:00`).toLocaleDateString("pt-BR");
 }
 
 function formatarDataHora(data) {
@@ -58,6 +58,20 @@ function classeStatus(status) {
   };
 
   return mapa[status] || "bg-slate-100 text-slate-700";
+}
+
+function obterChaveMes(dataRetirada) {
+  if (!dataRetirada) return "sem-data";
+  const [ano, mes] = dataRetirada.split("-");
+  return `${ano}-${mes}`;
+}
+
+function obterTituloMes(dataRetirada) {
+  if (!dataRetirada) return "Sem data de retirada";
+  return new Date(`${dataRetirada}T00:00:00`).toLocaleDateString("pt-BR", {
+    month: "long",
+    year: "numeric",
+  });
 }
 
 export default function Locacoes() {
@@ -111,13 +125,17 @@ export default function Locacoes() {
               valor_diaria,
               quantidade_dias,
               subtotal,
+              tamanho,
+              numeracao,
               equipamento:equipamentos (
                 id,
                 nome,
-                imagem_url
+                imagem_url,
+                categoria
               )
             )
           `)
+          .order("data_retirada", { ascending: false })
           .order("created_at", { ascending: false }),
         30000
       );
@@ -164,13 +182,6 @@ export default function Locacoes() {
       }
 
       await buscarLocacoes();
-
-      if (locacaoSelecionada?.id === locacaoId) {
-        const atualizada = locacoesFiltradas.find((item) => item.id === locacaoId);
-        if (atualizada) {
-          setLocacaoSelecionada(atualizada);
-        }
-      }
     } catch (err) {
       console.error("Erro ao atualizar status:", err);
 
@@ -186,8 +197,15 @@ export default function Locacoes() {
 
   function imprimirLocacao(locacao) {
     const itensHtml = (locacao.itens_locacao || [])
-      .map(
-        (item) => `
+      .map((item) => {
+        const detalhesExtras = [
+          item.tamanho ? `Tamanho: ${item.tamanho}` : null,
+          item.numeracao ? `Numeração: ${item.numeracao}` : null,
+        ]
+          .filter(Boolean)
+          .join(" | ");
+
+        return `
           <tr>
             <td style="padding:8px;border:1px solid #ccc;">${item.equipamento?.nome || "-"}</td>
             <td style="padding:8px;border:1px solid #ccc;text-align:center;">${item.quantidade}</td>
@@ -195,8 +213,19 @@ export default function Locacoes() {
             <td style="padding:8px;border:1px solid #ccc;text-align:right;">${formatarMoeda(item.valor_diaria)}</td>
             <td style="padding:8px;border:1px solid #ccc;text-align:right;">${formatarMoeda(item.subtotal)}</td>
           </tr>
-        `
-      )
+          ${
+            detalhesExtras
+              ? `
+                <tr>
+                  <td colspan="5" style="padding:8px;border:1px solid #ccc;color:#555;">
+                    ${detalhesExtras}
+                  </td>
+                </tr>
+              `
+              : ""
+          }
+        `;
+      })
       .join("");
 
     const html = `
@@ -254,6 +283,26 @@ export default function Locacoes() {
       return locacao.status === filtroStatus;
     });
   }, [locacoes, filtroStatus]);
+
+  const locacoesAgrupadasPorMes = useMemo(() => {
+    const grupos = locacoesFiltradas.reduce((acc, locacao) => {
+      const chave = obterChaveMes(locacao.data_retirada);
+      const titulo = obterTituloMes(locacao.data_retirada);
+
+      if (!acc[chave]) {
+        acc[chave] = {
+          chave,
+          titulo,
+          itens: [],
+        };
+      }
+
+      acc[chave].itens.push(locacao);
+      return acc;
+    }, {});
+
+    return Object.values(grupos).sort((a, b) => b.chave.localeCompare(a.chave));
+  }, [locacoesFiltradas]);
 
   const resumo = useMemo(() => {
     return {
@@ -345,100 +394,113 @@ export default function Locacoes() {
 
         {carregando ? (
           <div className="mt-6 text-slate-600">Carregando locações...</div>
-        ) : locacoesFiltradas.length === 0 ? (
+        ) : locacoesAgrupadasPorMes.length === 0 ? (
           <div className="mt-6 rounded-2xl border border-dashed border-slate-300 p-6 text-slate-500">
             Nenhuma locação encontrada.
           </div>
         ) : (
-          <div className="mt-6 flex-1 space-y-4 overflow-y-auto pr-2">
-            {locacoesFiltradas.map((locacao) => (
-              <div
-                key={locacao.id}
-                className="rounded-2xl border border-slate-200 p-4"
-              >
-                <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                  <div>
-                    <h3 className="text-lg font-semibold text-slate-800">
-                      {locacao.cliente?.nome || "Cliente não encontrado"}
-                    </h3>
-
-                    <p className="text-sm text-slate-600">
-                      Telefone: {locacao.cliente?.telefone || "-"}
-                    </p>
-
-                    <p className="text-sm text-slate-600">
-                      Retirada: {formatarData(locacao.data_retirada)}
-                    </p>
-
-                    <p className="text-sm text-slate-600">
-                      Devolução: {formatarData(locacao.data_devolucao)}
-                    </p>
-
-                    <p className="text-sm text-slate-600">
-                      Pagamento: {formatarFormaPagamento(locacao.forma_pagamento)}
-                    </p>
-
-                    <p className="text-sm text-slate-600">
-                      Criado em: {formatarDataHora(locacao.created_at)}
-                    </p>
-
-                    <div
-                      className={`mt-2 inline-flex rounded-full px-3 py-1 text-xs font-semibold ${classeStatus(
-                        locacao.status
-                      )}`}
-                    >
-                      {locacao.status}
-                    </div>
-
-                    <p className="mt-3 text-base font-bold text-slate-800">
-                      Total: {formatarMoeda(locacao.valor_total)}
-                    </p>
-                  </div>
-
-                  <div className="min-w-[250px] space-y-2">
-                    <p className="text-sm font-medium text-slate-700">
-                      Alterar status
-                    </p>
-
-                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                      {STATUS_OPTIONS.map((status) => (
-                        <button
-                          key={status}
-                          onClick={() => atualizarStatus(locacao.id, status)}
-                          disabled={
-                            atualizandoStatusId === locacao.id ||
-                            locacao.status === status
-                          }
-                          className="rounded-xl border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
-                        >
-                          {status}
-                        </button>
-                      ))}
-                    </div>
-
-                    <div className="flex gap-2 pt-2">
-                      <button
-                        onClick={() => setLocacaoSelecionada(locacao)}
-                        className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800"
-                      >
-                        Ver detalhes
-                      </button>
-
-                      <button
-                        onClick={() => imprimirLocacao(locacao)}
-                        className="rounded-xl bg-emerald-500 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-600"
-                      >
-                        Imprimir
-                      </button>
-                    </div>
-                  </div>
+          <div className="mt-6 flex-1 space-y-6 overflow-y-auto pr-2">
+            {locacoesAgrupadasPorMes.map((grupo) => (
+              <div key={grupo.chave} className="space-y-4">
+                <div className="sticky top-0 z-10 rounded-2xl bg-slate-100 px-4 py-3">
+                  <h3 className="text-lg font-semibold capitalize text-slate-800">
+                    {grupo.titulo}
+                  </h3>
+                  <p className="text-sm text-slate-500">
+                    {grupo.itens.length} locação(ões)
+                  </p>
                 </div>
 
-                {locacao.observacoes && (
-                  <div className="mt-4 rounded-xl bg-amber-50 px-3 py-2 text-sm text-amber-700">
-                    Observações: {locacao.observacoes}
+                {grupo.itens.map((locacao) => (
+                  <div
+                    key={locacao.id}
+                    className="rounded-2xl border border-slate-200 p-4"
+                  >
+                    <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                      <div>
+                        <h3 className="text-lg font-semibold text-slate-800">
+                          {locacao.cliente?.nome || "Cliente não encontrado"}
+                        </h3>
+
+                        <p className="text-sm text-slate-600">
+                          Telefone: {locacao.cliente?.telefone || "-"}
+                        </p>
+
+                        <p className="text-sm text-slate-600">
+                          Retirada: {formatarData(locacao.data_retirada)}
+                        </p>
+
+                        <p className="text-sm text-slate-600">
+                          Devolução: {formatarData(locacao.data_devolucao)}
+                        </p>
+
+                        <p className="text-sm text-slate-600">
+                          Pagamento: {formatarFormaPagamento(locacao.forma_pagamento)}
+                        </p>
+
+                        <p className="text-sm text-slate-600">
+                          Criado em: {formatarDataHora(locacao.created_at)}
+                        </p>
+
+                        <div
+                          className={`mt-2 inline-flex rounded-full px-3 py-1 text-xs font-semibold ${classeStatus(
+                            locacao.status
+                          )}`}
+                        >
+                          {locacao.status}
+                        </div>
+
+                        <p className="mt-3 text-base font-bold text-slate-800">
+                          Total: {formatarMoeda(locacao.valor_total)}
+                        </p>
+                      </div>
+
+                      <div className="min-w-[250px] space-y-2">
+                        <p className="text-sm font-medium text-slate-700">
+                          Alterar status
+                        </p>
+
+                        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                          {STATUS_OPTIONS.map((status) => (
+                            <button
+                              key={status}
+                              onClick={() => atualizarStatus(locacao.id, status)}
+                              disabled={
+                                atualizandoStatusId === locacao.id ||
+                                locacao.status === status
+                              }
+                              className="rounded-xl border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                            >
+                              {status}
+                            </button>
+                          ))}
+                        </div>
+
+                        <div className="flex gap-2 pt-2">
+                          <button
+                            onClick={() => setLocacaoSelecionada(locacao)}
+                            className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800"
+                          >
+                            Ver detalhes
+                          </button>
+
+                          <button
+                            onClick={() => imprimirLocacao(locacao)}
+                            className="rounded-xl bg-emerald-500 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-600"
+                          >
+                            Imprimir
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+
+                    {locacao.observacoes && (
+                      <div className="mt-4 rounded-xl bg-amber-50 px-3 py-2 text-sm text-amber-700">
+                        Observações: {locacao.observacoes}
+                      </div>
+                    )}
                   </div>
-                )}
+                ))}
               </div>
             ))}
           </div>
@@ -515,7 +577,7 @@ export default function Locacoes() {
                             <img
                               src={item.equipamento.imagem_url}
                               alt={item.equipamento?.nome || "Equipamento"}
-                              className="h-20 w-20 rounded-xl object-cover"
+                              className="h-20 w-20 rounded-xl bg-slate-100 object-contain p-1"
                             />
                           )}
 
@@ -523,6 +585,13 @@ export default function Locacoes() {
                             <p className="font-medium text-slate-800">
                               {item.equipamento?.nome || "Equipamento"}
                             </p>
+
+                            {item.equipamento?.categoria && (
+                              <p className="text-sm text-slate-600">
+                                Categoria: {item.equipamento.categoria}
+                              </p>
+                            )}
+
                             <p className="text-sm text-slate-600">
                               Quantidade: {item.quantidade}
                             </p>
@@ -532,6 +601,19 @@ export default function Locacoes() {
                             <p className="text-sm text-slate-600">
                               Diária: {formatarMoeda(item.valor_diaria)}
                             </p>
+
+                            {item.tamanho && (
+                              <p className="text-sm text-slate-600">
+                                Tamanho: {item.tamanho}
+                              </p>
+                            )}
+
+                            {item.numeracao && (
+                              <p className="text-sm text-slate-600">
+                                Numeração: {item.numeracao}
+                              </p>
+                            )}
+
                             <p className="text-sm font-semibold text-slate-800">
                               Subtotal: {formatarMoeda(item.subtotal)}
                             </p>
