@@ -363,7 +363,7 @@ export default function EquipamentosPage() {
                 disabled={salvando}
               />
               <span className="text-sm font-medium text-slate-700">
-                Este item usa tamanho
+                Este item usa tamanho (P, M, G, GG)
               </span>
             </label>
 
@@ -376,7 +376,7 @@ export default function EquipamentosPage() {
                 disabled={salvando}
               />
               <span className="text-sm font-medium text-slate-700">
-                Este item usa numeração
+                Este item usa numeração (34, 35, 36...)
               </span>
             </label>
 
