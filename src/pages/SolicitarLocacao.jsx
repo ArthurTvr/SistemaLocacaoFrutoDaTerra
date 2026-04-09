@@ -734,6 +734,12 @@ export default function SolicitarLocacao() {
                   {formatarMoeda(totalLocacao)}
                 </p>
               </div>
+              <div className="rounded-2xl bg-slate-50 px-4 py-4">
+                <p className="text-sm text-slate-500">Metade do valor total (50%)</p>
+                <p className="text-2xl font-bold text-slate-800">
+                  {formatarMoeda(totalLocacao / 2)}
+                </p>
+              </div>
 
               <div className="flex gap-3">
                 <button
