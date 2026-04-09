@@ -5,7 +5,7 @@ import Layout from "./components/Layout";
 
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
-import Equipamentos from "./pages/equipamentos";
+import Equipamentos from "./pages/Equipamentos";
 import Locacoes from "./pages/Locacoes";
 import SolicitarLocacao from "./pages/SolicitarLocacao";
 
@@ -25,7 +25,7 @@ export default function App() {
       <Route path="/solicitar" element={<SolicitarLocacao />} />
 
       <Route
-        path="/login"
+        path="/login" //aspodaposb
         element={user ? <Navigate to="/" replace /> : <Login />}
       />
 
@@ -45,4 +45,3 @@ export default function App() {
   );
 }
 
-// att
