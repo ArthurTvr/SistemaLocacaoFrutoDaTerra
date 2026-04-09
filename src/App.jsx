@@ -25,7 +25,7 @@ export default function App() {
       <Route path="/solicitar" element={<SolicitarLocacao />} />
 
       <Route
-        path="/login" //aspodaposb
+        path="/login" 
         element={user ? <Navigate to="/" replace /> : <Login />}
       />
 
