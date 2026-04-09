@@ -503,3 +503,4 @@ export default function Equipamentos() {
     </div>
   );
 }
+// att o git
