@@ -5,7 +5,7 @@ import Layout from "./components/Layout";
 
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
-import Equipamentos from "./pages/Equipamentos";
+import Equipamentos from "./pages/equipamentos";
 import Locacoes from "./pages/Locacoes";
 import SolicitarLocacao from "./pages/SolicitarLocacao";
 
