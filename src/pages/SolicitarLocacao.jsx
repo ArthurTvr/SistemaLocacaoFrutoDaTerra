@@ -12,12 +12,8 @@ const FORM_INICIAL = {
 };
 
 const FORMAS_PAGAMENTO = [
-  { value: "dinheiro", label: "Dinheiro" },
   { value: "pix", label: "Pix" },
   { value: "cartao_credito", label: "Cartão de crédito" },
-  { value: "cartao_debito", label: "Cartão de débito" },
-  { value: "boleto", label: "Boleto" },
-  { value: "prazo", label: "A prazo" },
 ];
 
 function traduzirErro(err) {
@@ -59,6 +55,8 @@ function agruparPorCategoria(equipamentos) {
 export default function SolicitarLocacao() {
   const ativoRef = useRef(true);
   const formularioRef = useRef(null);
+  const topoFeedbackRef = useRef(null);
+  const feedbackModalRef = useRef(null);
 
   const [equipamentos, setEquipamentos] = useState([]);
   const [itens, setItens] = useState([]);
@@ -68,9 +66,9 @@ export default function SolicitarLocacao() {
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState("");
   const [mensagem, setMensagem] = useState("");
+  const [erroModal, setErroModal] = useState("");
 
-  const [modalEquipamentosAberto, setModalEquipamentosAberto] =
-    useState(false);
+  const [modalEquipamentosAberto, setModalEquipamentosAberto] = useState(false);
   const [equipamentoModalSelecionado, setEquipamentoModalSelecionado] =
     useState(null);
   const [quantidadeModal, setQuantidadeModal] = useState("1");
@@ -87,15 +85,15 @@ export default function SolicitarLocacao() {
   }, [itens]);
 
   const categorias = useMemo(() => {
-    return [...new Set(equipamentos.map((eq) => eq.categoria).filter(Boolean))].sort(
-      (a, b) => a.localeCompare(b)
-    );
+    return [
+      ...new Set(equipamentos.map((eq) => eq.categoria).filter(Boolean)),
+    ].sort((a, b) => a.localeCompare(b));
   }, [equipamentos]);
 
   const equipamentosFiltrados = useMemo(() => {
     if (!categoriaSelecionada) return equipamentos;
     return equipamentos.filter(
-      (equipamento) => equipamento.categoria === categoriaSelecionada
+      (equipamento) => equipamento.categoria === categoriaSelecionada,
     );
   }, [equipamentos, categoriaSelecionada]);
 
@@ -114,21 +112,39 @@ export default function SolicitarLocacao() {
 
   useEffect(() => {
     const overflowAnterior = document.body.style.overflow;
-    const touchActionAnterior = document.body.style.touchAction;
 
     if (modalEquipamentosAberto) {
       document.body.style.overflow = "hidden";
-      document.body.style.touchAction = "none";
     } else {
       document.body.style.overflow = overflowAnterior || "";
-      document.body.style.touchAction = touchActionAnterior || "";
     }
 
     return () => {
       document.body.style.overflow = overflowAnterior || "";
-      document.body.style.touchAction = touchActionAnterior || "";
     };
   }, [modalEquipamentosAberto]);
+
+  function mostrarErroPagina(texto) {
+    setErro(texto);
+
+    requestAnimationFrame(() => {
+      topoFeedbackRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    });
+  }
+
+  function mostrarErroModal(texto) {
+    setErroModal(texto);
+
+    requestAnimationFrame(() => {
+      feedbackModalRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    });
+  }
 
   async function buscarEquipamentos() {
     if (ativoRef.current) {
@@ -144,7 +160,7 @@ export default function SolicitarLocacao() {
           .eq("ativo", true)
           .order("categoria", { ascending: true })
           .order("nome", { ascending: true }),
-        30000
+        30000,
       );
 
       if (error) throw error;
@@ -186,19 +202,23 @@ export default function SolicitarLocacao() {
   function abrirModalEquipamentos() {
     setErro("");
     setMensagem("");
+    setErroModal("");
 
     if (!form.data_retirada || !form.data_devolucao) {
-      setErro(
-        "Informe a data de retirada e a data de devolução antes de adicionar equipamentos."
+      mostrarErroPagina(
+        "Informe a data de retirada e a data de devolução antes de adicionar equipamentos.",
       );
       return;
     }
 
     if (quantidadeDias <= 0) {
-      setErro("A data de devolução deve ser maior que a data de retirada.");
+      mostrarErroPagina(
+        "A data de devolução deve ser maior que a data de retirada.",
+      );
       return;
     }
 
+    setErro("");
     setModalEquipamentosAberto(true);
   }
 
@@ -208,6 +228,7 @@ export default function SolicitarLocacao() {
     setQuantidadeModal("1");
     setTamanhoModal("");
     setNumeracaoModal("");
+    setErroModal("");
   }
 
   function selecionarEquipamento(equipamento) {
@@ -215,6 +236,7 @@ export default function SolicitarLocacao() {
     setQuantidadeModal("1");
     setTamanhoModal("");
     setNumeracaoModal("");
+    setErroModal("");
   }
 
   function voltarAoCatalogo() {
@@ -222,14 +244,16 @@ export default function SolicitarLocacao() {
     setQuantidadeModal("1");
     setTamanhoModal("");
     setNumeracaoModal("");
+    setErroModal("");
   }
 
   function adicionarItemDoModal() {
     setErro("");
     setMensagem("");
+    setErroModal("");
 
     if (!equipamentoModalSelecionado) {
-      setErro("Selecione um equipamento.");
+      mostrarErroModal("Selecione um equipamento.");
       return;
     }
 
@@ -240,48 +264,83 @@ export default function SolicitarLocacao() {
       quantidade <= 0 ||
       !Number.isInteger(quantidade)
     ) {
-      setErro("Informe uma quantidade válida.");
+      mostrarErroModal("Informe uma quantidade válida.");
       return;
     }
 
     if (equipamentoModalSelecionado.usa_tamanho && !tamanhoModal.trim()) {
-      setErro("Informe o tamanho.");
+      mostrarErroModal("Informe o tamanho.");
       return;
     }
 
-    if (
-      equipamentoModalSelecionado.usa_numeracao &&
-      !numeracaoModal.trim()
-    ) {
-      setErro("Informe a numeração.");
+    if (equipamentoModalSelecionado.usa_numeracao && !numeracaoModal.trim()) {
+      mostrarErroModal("Informe a numeração.");
       return;
     }
 
-    const subtotalNovoItem =
-      quantidade *
-      Number(equipamentoModalSelecionado.valor_diaria) *
-      quantidadeDias;
+    const chaveTamanho = equipamentoModalSelecionado.usa_tamanho
+      ? tamanhoModal.trim()
+      : null;
 
-    setItens((prev) => [
-      ...prev,
-      {
-        uid: crypto.randomUUID(),
-        equipamento_id: equipamentoModalSelecionado.id,
-        equipamento_nome: equipamentoModalSelecionado.nome,
-        imagem_url: equipamentoModalSelecionado.imagem_url || "",
-        categoria: equipamentoModalSelecionado.categoria || "Outros",
-        quantidade,
-        valor_diaria: Number(equipamentoModalSelecionado.valor_diaria),
-        quantidade_dias: quantidadeDias,
-        subtotal: subtotalNovoItem,
-        tamanho: equipamentoModalSelecionado.usa_tamanho
-          ? tamanhoModal.trim()
-          : null,
-        numeracao: equipamentoModalSelecionado.usa_numeracao
-          ? numeracaoModal.trim()
-          : null,
-      },
-    ]);
+    const chaveNumeracao = equipamentoModalSelecionado.usa_numeracao
+      ? numeracaoModal.trim()
+      : null;
+
+    setItens((prev) => {
+      const itemExistente = prev.find((item) => {
+        return (
+          String(item.equipamento_id) ===
+            String(equipamentoModalSelecionado.id) &&
+          (item.tamanho || null) === chaveTamanho &&
+          (item.numeracao || null) === chaveNumeracao
+        );
+      });
+
+      if (itemExistente) {
+        return prev.map((item) => {
+          if (
+            String(item.equipamento_id) ===
+              String(equipamentoModalSelecionado.id) &&
+            (item.tamanho || null) === chaveTamanho &&
+            (item.numeracao || null) === chaveNumeracao
+          ) {
+            const novaQuantidade = Number(item.quantidade) + quantidade;
+            return {
+              ...item,
+              quantidade: novaQuantidade,
+              subtotal:
+                novaQuantidade *
+                Number(item.valor_diaria) *
+                Number(item.quantidade_dias),
+            };
+          }
+
+          return item;
+        });
+      }
+
+      const subtotalNovoItem =
+        quantidade *
+        Number(equipamentoModalSelecionado.valor_diaria) *
+        quantidadeDias;
+
+      return [
+        ...prev,
+        {
+          uid: crypto.randomUUID(),
+          equipamento_id: equipamentoModalSelecionado.id,
+          equipamento_nome: equipamentoModalSelecionado.nome,
+          imagem_url: equipamentoModalSelecionado.imagem_url || "",
+          categoria: equipamentoModalSelecionado.categoria || "Outros",
+          quantidade,
+          valor_diaria: Number(equipamentoModalSelecionado.valor_diaria),
+          quantidade_dias: quantidadeDias,
+          subtotal: subtotalNovoItem,
+          tamanho: chaveTamanho,
+          numeracao: chaveNumeracao,
+        },
+      ];
+    });
 
     setMensagem("Equipamento adicionado ao carrinho.");
     voltarAoCatalogo();
@@ -300,7 +359,7 @@ export default function SolicitarLocacao() {
         .select("*")
         .eq("telefone", telefoneLimpo)
         .maybeSingle(),
-      30000
+      30000,
     );
 
     if (erroBusca) throw erroBusca;
@@ -318,7 +377,7 @@ export default function SolicitarLocacao() {
         })
         .select()
         .single(),
-      30000
+      30000,
     );
 
     if (erroCriacao) throw erroCriacao;
@@ -330,27 +389,29 @@ export default function SolicitarLocacao() {
     e.preventDefault();
 
     if (!form.nome.trim()) {
-      setErro("Informe seu nome.");
+      mostrarErroPagina("Informe seu nome.");
       return;
     }
 
     if (!form.telefone.trim()) {
-      setErro("Informe seu telefone.");
+      mostrarErroPagina("Informe seu telefone.");
       return;
     }
 
     if (!form.data_retirada || !form.data_devolucao) {
-      setErro("Informe a data de retirada e devolução.");
+      mostrarErroPagina("Informe a data de retirada e devolução.");
       return;
     }
 
     if (quantidadeDias <= 0) {
-      setErro("A data de devolução deve ser maior que a data de retirada.");
+      mostrarErroPagina(
+        "A data de devolução deve ser maior que a data de retirada.",
+      );
       return;
     }
 
     if (itens.length === 0) {
-      setErro("Adicione pelo menos um equipamento.");
+      mostrarErroPagina("Adicione pelo menos um equipamento.");
       return;
     }
 
@@ -377,7 +438,7 @@ export default function SolicitarLocacao() {
           })
           .select()
           .single(),
-        30000
+        30000,
       );
 
       if (error) throw error;
@@ -397,14 +458,14 @@ export default function SolicitarLocacao() {
 
       const { error: erroItens } = await withTimeout(
         supabase.from("itens_locacao").insert(itensParaSalvar),
-        30000
+        30000,
       );
 
       if (erroItens) throw erroItens;
 
       if (ativoRef.current) {
         setMensagem(
-          "Solicitação enviada com sucesso! Em breve entraremos em contato."
+          "Solicitação enviada com sucesso! Em breve entraremos em contato.",
         );
         setForm(FORM_INICIAL);
         setItens([]);
@@ -419,7 +480,7 @@ export default function SolicitarLocacao() {
               .from("itens_locacao")
               .delete()
               .eq("locacao_id", locacaoCriada.id),
-            5000
+            5000,
           );
         } catch (rollbackItensErr) {
           console.error("Erro ao desfazer itens da locação:", rollbackItensErr);
@@ -428,7 +489,7 @@ export default function SolicitarLocacao() {
         try {
           await withTimeout(
             supabase.from("locacoes").delete().eq("id", locacaoCriada.id),
-            5000
+            5000,
           );
         } catch (rollbackLocacaoErr) {
           console.error("Erro ao desfazer locação:", rollbackLocacaoErr);
@@ -436,7 +497,7 @@ export default function SolicitarLocacao() {
       }
 
       if (ativoRef.current) {
-        setErro(traduzirErro(err));
+        mostrarErroPagina(traduzirErro(err));
       }
     } finally {
       if (ativoRef.current) {
@@ -525,7 +586,8 @@ export default function SolicitarLocacao() {
                     <div>
                       <p className="font-semibold">Escolha as datas</p>
                       <p className="text-slate-500">
-                        Informe retirada e devolução antes de selecionar os itens.
+                        Informe retirada e devolução antes de selecionar os
+                        itens.
                       </p>
                     </div>
                   </div>
@@ -553,6 +615,7 @@ export default function SolicitarLocacao() {
                       </p>
                     </div>
                   </div>
+
                   <div className="flex gap-3">
                     <div className="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-100 font-bold text-emerald-700">
                       4
@@ -560,7 +623,9 @@ export default function SolicitarLocacao() {
                     <div>
                       <p className="font-semibold">Pagamento</p>
                       <p className="text-slate-500">
-                        Pague metade do valor total agora e o restante só na retirada do equipamento.
+                        Pague a metade do valor total para confirmar a reserva.
+                        O restante é pago na entrega. (Em caso de cancelamento,
+                        o valor pago <span className="font-bold">não</span> será reembolsado.)
                       </p>
                     </div>
                   </div>
@@ -593,9 +658,15 @@ export default function SolicitarLocacao() {
         </div>
       </section>
 
-      <section ref={formularioRef} className="mx-auto max-w-7xl space-y-4 px-4 py-5 sm:space-y-6 sm:px-6 sm:py-8">
+      <section
+        ref={formularioRef}
+        className="mx-auto max-w-7xl space-y-4 px-4 py-5 sm:space-y-6 sm:px-6 sm:py-8"
+      >
         {erro && (
-          <div className="rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-600">
+          <div
+            ref={topoFeedbackRef}
+            className="rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-600"
+          >
             {erro}
           </div>
         )}
@@ -653,7 +724,7 @@ export default function SolicitarLocacao() {
                     name="data_retirada"
                     value={form.data_retirada}
                     onChange={handleChange}
-                    className="w-full rounded-2xl border border-slate-300 px-4 py-3 outline-none focus:border-emerald-500"
+                    className="w-full max-w-full rounded-2xl border border-slate-300 px-4 py-3 outline-none focus:border-emerald-500"
                     disabled={salvando}
                   />
                 </div>
@@ -734,8 +805,11 @@ export default function SolicitarLocacao() {
                   {formatarMoeda(totalLocacao)}
                 </p>
               </div>
+
               <div className="rounded-2xl bg-slate-50 px-4 py-4">
-                <p className="text-sm text-slate-500">Metade do valor total (50%)</p>
+                <p className="text-sm text-slate-500">
+                  Metade do valor total (50%)
+                </p>
                 <p className="text-2xl font-bold text-slate-800">
                   {formatarMoeda(totalLocacao / 2)}
                 </p>
@@ -747,7 +821,7 @@ export default function SolicitarLocacao() {
                   disabled={salvando}
                   className="flex-1 rounded-2xl bg-emerald-500 px-4 py-3 font-semibold text-white hover:bg-emerald-600 disabled:opacity-60"
                 >
-                  {salvando ? "Enviando..." : "Enviar solicitação"}
+                  {salvando ? "Enviando..." : "Confirmar pedido"}
                 </button>
 
                 <button
@@ -849,18 +923,27 @@ export default function SolicitarLocacao() {
 
       {modalEquipamentosAberto && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 backdrop-blur-sm p-3">
-          <div className="relative flex h-[92vh] w-full max-w-5xl flex-col rounded-3xl bg-white p-4 shadow-2xl sm:p-6">
+          <div className="relative flex h-[75vh] w-full max-w-5xl flex-col rounded-3xl bg-white p-4 shadow-2xl sm:p-6">
             <button
               type="button"
               onClick={fecharModalEquipamentos}
-              className="absolute right-3 top-3 rounded-xl bg-slate-100 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-200"
+              className="absolute right-3 top-3 rounded-xl bg-red-500 px-3 py-2 text-sm font-medium text-white hover:bg-red-600"
             >
-              Fechar
+              Voltar
             </button>
 
             <h3 className="mb-4 pr-16 text-xl font-bold text-slate-800 sm:text-2xl">
               Escolher equipamentos
             </h3>
+
+            {erroModal && (
+              <div
+                ref={feedbackModalRef}
+                className="mb-4 rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-600"
+              >
+                {erroModal}
+              </div>
+            )}
 
             <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center">
               <select
@@ -868,6 +951,7 @@ export default function SolicitarLocacao() {
                 onChange={(e) => {
                   setCategoriaSelecionada(e.target.value);
                   setEquipamentoModalSelecionado(null);
+                  setErroModal("");
                 }}
                 className="rounded-2xl border border-slate-300 px-4 py-3 text-sm text-slate-700 outline-none focus:border-emerald-500"
               >
@@ -883,7 +967,7 @@ export default function SolicitarLocacao() {
                 <button
                   type="button"
                   onClick={voltarAoCatalogo}
-                  className="rounded-2xl border border-slate-300 px-4 py-3 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                  className="rounded-2xl border border-slate-300 bg-amber-500 px-4 py-3 text-sm font-medium text-white hover:bg-amber-600"
                 >
                   Voltar ao catálogo
                 </button>
@@ -893,7 +977,9 @@ export default function SolicitarLocacao() {
             <div className="grid flex-1 gap-4 overflow-hidden lg:grid-cols-[1fr_300px]">
               <div className="overflow-y-auto pr-1">
                 {carregando ? (
-                  <div className="text-slate-600">Carregando equipamentos...</div>
+                  <div className="text-slate-600">
+                    Carregando equipamentos...
+                  </div>
                 ) : equipamentosFiltrados.length === 0 ? (
                   <div className="rounded-2xl border border-dashed border-slate-300 p-6 text-slate-500">
                     Nenhum equipamento disponível no momento.
@@ -912,7 +998,9 @@ export default function SolicitarLocacao() {
                               <button
                                 key={equipamento.id}
                                 type="button"
-                                onClick={() => selecionarEquipamento(equipamento)}
+                                onClick={() =>
+                                  selecionarEquipamento(equipamento)
+                                }
                                 className="rounded-2xl border border-slate-200 p-3 text-left transition hover:border-slate-300"
                               >
                                 <div className="mb-3 flex h-20 items-center justify-center rounded-xl bg-slate-100 p-2">
@@ -934,7 +1022,8 @@ export default function SolicitarLocacao() {
                                 </h5>
 
                                 <p className="mt-1 text-sm text-slate-600">
-                                  {formatarMoeda(equipamento.valor_diaria)} por dia
+                                  {formatarMoeda(equipamento.valor_diaria)} por
+                                  dia
                                 </p>
 
                                 <p className="mt-1 line-clamp-2 text-xs text-slate-500">
@@ -944,13 +1033,13 @@ export default function SolicitarLocacao() {
                             ))}
                           </div>
                         </div>
-                      )
+                      ),
                     )}
                   </div>
                 )}
               </div>
 
-              <div className="rounded-2xl border border-slate-200 p-4 overflow-y-auto">
+              <div className="overflow-y-auto rounded-2xl border border-slate-200 p-4">
                 {!equipamentoModalSelecionado ? (
                   <div className="flex h-full items-center justify-center text-center text-sm text-slate-500">
                     Selecione um equipamento no catálogo para ver os detalhes.
@@ -976,13 +1065,18 @@ export default function SolicitarLocacao() {
                         {equipamentoModalSelecionado.nome}
                       </h5>
                       <p className="mt-1 text-sm text-slate-600">
-                        Categoria: {equipamentoModalSelecionado.categoria || "Outros"}
+                        Categoria:{" "}
+                        {equipamentoModalSelecionado.categoria || "Outros"}
                       </p>
                       <p className="mt-1 text-sm text-slate-600">
-                        {formatarMoeda(equipamentoModalSelecionado.valor_diaria)} por dia
+                        {formatarMoeda(
+                          equipamentoModalSelecionado.valor_diaria,
+                        )}{" "}
+                        por dia
                       </p>
                       <p className="mt-2 text-sm text-slate-500">
-                        {equipamentoModalSelecionado.descricao || "Sem descrição"}
+                        {equipamentoModalSelecionado.descricao ||
+                          "Sem descrição"}
                       </p>
                     </div>
 
@@ -991,7 +1085,8 @@ export default function SolicitarLocacao() {
                         Quantidade
                       </label>
                       <input
-                        type="text"
+                        type="number"
+                        min="1"
                         value={quantidadeModal}
                         onChange={(e) => setQuantidadeModal(e.target.value)}
                         className="w-full rounded-2xl border border-slate-300 px-4 py-3 outline-none focus:border-emerald-500"
@@ -1020,7 +1115,8 @@ export default function SolicitarLocacao() {
                           Numeração
                         </label>
                         <input
-                          type="text"
+                          type="number"
+                          min="1"
                           value={numeracaoModal}
                           onChange={(e) => setNumeracaoModal(e.target.value)}
                           className="w-full rounded-2xl border border-slate-300 px-4 py-3 outline-none focus:border-emerald-500"
