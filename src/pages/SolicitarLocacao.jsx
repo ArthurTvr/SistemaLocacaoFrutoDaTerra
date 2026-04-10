@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "../lib/supabase";
 import { withTimeout } from "../lib/withTimeout";
+import logo from "../assets/images/logo.png";
 
 const FORM_INICIAL = {
   nome: "",
@@ -51,7 +52,23 @@ function agruparPorCategoria(equipamentos) {
     return acc;
   }, {});
 }
+function limparTelefone(valor) {
+  return String(valor || "").replace(/\D/g, "");
+}
 
+function formatarTelefone(valor) {
+  const numeros = limparTelefone(valor).slice(0, 11);
+
+  if (numeros.length <= 2) {
+    return numeros;
+  }
+
+  if (numeros.length <= 7) {
+    return `(${numeros.slice(0, 2)}) ${numeros.slice(2)}`;
+  }
+
+  return `(${numeros.slice(0, 2)}) ${numeros.slice(2, 7)}-${numeros.slice(7)}`;
+}
 export default function SolicitarLocacao() {
   const ativoRef = useRef(true);
   const formularioRef = useRef(null);
@@ -187,7 +204,7 @@ export default function SolicitarLocacao() {
 
     setForm((prev) => ({
       ...prev,
-      [name]: value,
+      [name]: name === "telefone" ? formatarTelefone(value) : value,
     }));
   }
 
@@ -351,7 +368,12 @@ export default function SolicitarLocacao() {
   }
 
   async function buscarOuCriarCliente() {
-    const telefoneLimpo = form.telefone.trim();
+    const telefoneLimpo = limparTelefone(form.telefone);
+
+    if (telefoneLimpo.length < 11) {
+      mostrarErroPagina("Informe um telefone válido.");
+      return;
+    }
 
     const { data: clienteExistente, error: erroBusca } = await withTimeout(
       supabase
@@ -393,8 +415,10 @@ export default function SolicitarLocacao() {
       return;
     }
 
-    if (!form.telefone.trim()) {
-      mostrarErroPagina("Informe seu telefone.");
+    const telefoneLimpo = limparTelefone(form.telefone);
+
+    if (telefoneLimpo.length < 11) {
+      mostrarErroPagina("Informe um telefone válido.");
       return;
     }
 
@@ -518,140 +542,60 @@ export default function SolicitarLocacao() {
       <section className="relative overflow-hidden bg-slate-900 text-white">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(16,185,129,0.18),transparent_35%),radial-gradient(circle_at_bottom_left,rgba(255,255,255,0.08),transparent_25%)]" />
         <div className="relative mx-auto max-w-7xl px-4 py-10 sm:px-6 sm:py-14">
-          <div className="flex flex-col gap-8 lg:grid lg:grid-cols-[1.1fr_0.9fr] lg:items-center">
-            <div>
-              <div className="inline-flex items-center gap-2 rounded-full bg-white/10 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-emerald-300">
-                Fruto da Terra
-              </div>
-
-              <h1 className="mt-5 text-3xl font-bold leading-tight sm:text-5xl">
-                Alugue equipamentos para sua aventura com praticidade
-              </h1>
-
-              <p className="mt-4 max-w-2xl text-sm text-slate-200 sm:text-lg">
-                Monte sua locação de forma rápida, escolha datas, selecione os
-                equipamentos e envie sua solicitação direto pelo celular.
-              </p>
-
-              <div className="mt-6 flex flex-col gap-3 sm:flex-row">
-                <button
-                  type="button"
-                  onClick={rolarParaFormulario}
-                  className="rounded-2xl bg-emerald-500 px-6 py-4 text-sm font-semibold text-white hover:bg-emerald-600"
-                >
-                  Fazer minha locação
-                </button>
-              </div>
-
-              <div className="mt-8 grid gap-3 sm:grid-cols-3">
-                <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-                  <p className="text-sm font-semibold text-white">
-                    Equipamentos de qualidade
-                  </p>
-                  <p className="mt-1 text-xs text-slate-300">
-                    Produtos selecionados para camping e trekking.
-                  </p>
-                </div>
-
-                <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-                  <p className="text-sm font-semibold text-white">
-                    Solicitação rápida
-                  </p>
-                  <p className="mt-1 text-xs text-slate-300">
-                    Faça tudo pelo celular em poucos minutos.
-                  </p>
-                </div>
-
-                <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-                  <p className="text-sm font-semibold text-white">
-                    Atendimento simples
-                  </p>
-                  <p className="mt-1 text-xs text-slate-300">
-                    Envie a solicitação e receba a confirmação.
-                  </p>
-                </div>
-              </div>
+          <div className="mx-auto max-w-4xl text-center">
+            <div className="flex justify-center">
+              <img
+                src={logo}
+                alt="Fruto da Terra"
+                className="h-24 w-auto sm:h-32"
+              />
             </div>
 
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-1">
-              <div className="rounded-3xl bg-white p-5 text-slate-800 shadow-xl">
-                <p className="text-sm font-semibold text-emerald-700">
-                  Como funciona
+            <h1 className="mt-6 text-3xl font-bold leading-tight sm:text-5xl">
+              Alugue equipamentos para sua aventura com praticidade
+            </h1>
+
+            <p className="mx-auto mt-4 max-w-2xl text-sm text-slate-200 sm:text-lg">
+              Escolha as datas, monte seu carrinho e envie sua solicitação de
+              forma rápida e simples direto pelo celular.
+            </p>
+
+            <div className="mt-6 flex justify-center">
+              <button
+                type="button"
+                onClick={rolarParaFormulario}
+                className="rounded-2xl bg-emerald-500 px-6 py-4 text-sm font-semibold text-white hover:bg-emerald-600"
+              >
+                Fazer minha locação
+              </button>
+            </div>
+
+            <div className="mt-8 grid gap-3 sm:grid-cols-3">
+              <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                <p className="text-sm font-semibold text-white">
+                  Equipamentos de qualidade
                 </p>
-                <div className="mt-4 space-y-4 text-sm">
-                  <div className="flex gap-3">
-                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-100 font-bold text-emerald-700">
-                      1
-                    </div>
-                    <div>
-                      <p className="font-semibold">Escolha as datas</p>
-                      <p className="text-slate-500">
-                        Informe retirada e devolução antes de selecionar os
-                        itens.
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="flex gap-3">
-                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-100 font-bold text-emerald-700">
-                      2
-                    </div>
-                    <div>
-                      <p className="font-semibold">Monte seu carrinho</p>
-                      <p className="text-slate-500">
-                        Selecione equipamentos por categoria no catálogo.
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="flex gap-3">
-                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-100 font-bold text-emerald-700">
-                      3
-                    </div>
-                    <div>
-                      <p className="font-semibold">Envie a solicitação</p>
-                      <p className="text-slate-500">
-                        Nossa equipe recebe e entra em contato para confirmar.
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="flex gap-3">
-                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-100 font-bold text-emerald-700">
-                      4
-                    </div>
-                    <div>
-                      <p className="font-semibold">Pagamento</p>
-                      <p className="text-slate-500">
-                        Pague a metade do valor total para confirmar a reserva.
-                        O restante é pago na entrega. (Em caso de cancelamento,
-                        o valor pago <span className="font-bold">não</span> será reembolsado.)
-                      </p>
-                    </div>
-                  </div>
-                </div>
+                <p className="mt-1 text-xs text-slate-300">
+                  Produtos selecionados para camping e trekking.
+                </p>
               </div>
 
-              <div className="rounded-3xl bg-white/10 p-5 text-white ring-1 ring-white/10 backdrop-blur">
-                <p className="text-sm font-semibold text-emerald-300">
-                  Categorias disponíveis
+              <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                <p className="text-sm font-semibold text-white">
+                  Reserva rápida
                 </p>
-                <div className="mt-4 flex flex-wrap gap-2">
-                  {categorias.length > 0 ? (
-                    categorias.map((categoria) => (
-                      <span
-                        key={categoria}
-                        className="rounded-full bg-white/10 px-3 py-2 text-xs font-medium text-slate-100"
-                      >
-                        {categoria}
-                      </span>
-                    ))
-                  ) : (
-                    <span className="text-sm text-slate-300">
-                      Carregando categorias...
-                    </span>
-                  )}
-                </div>
+                <p className="mt-1 text-xs text-slate-300">
+                  Solicite tudo em poucos minutos pelo celular.
+                </p>
+              </div>
+
+              <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                <p className="text-sm font-semibold text-white">
+                  Atendimento simples
+                </p>
+                <p className="mt-1 text-xs text-slate-300">
+                  Envie a solicitação e receba a confirmação.
+                </p>
               </div>
             </div>
           </div>
@@ -704,12 +648,13 @@ export default function SolicitarLocacao() {
                   Telefone
                 </label>
                 <input
-                  type="text"
+                  type="tel"
                   name="telefone"
                   value={form.telefone}
                   onChange={handleChange}
+                  inputMode="numeric"
                   className="w-full rounded-2xl border border-slate-300 px-4 py-3 outline-none focus:border-emerald-500"
-                  placeholder="Seu telefone"
+                  placeholder="(00) 00000-0000"
                   disabled={salvando}
                 />
               </div>
@@ -724,12 +669,12 @@ export default function SolicitarLocacao() {
                     name="data_retirada"
                     value={form.data_retirada}
                     onChange={handleChange}
-                    className="w-full max-w-full rounded-2xl border border-slate-300 px-4 py-3 outline-none focus:border-emerald-500"
+                    className="block w-full min-w-0 max-w-full rounded-2xl border border-slate-300 px-4 py-3 outline-none focus:border-emerald-500"
                     disabled={salvando}
                   />
                 </div>
 
-                <div>
+                <div className="min-w-0">
                   <label className="mb-1 block text-sm font-medium text-slate-700">
                     Data de devolução
                   </label>
@@ -738,7 +683,7 @@ export default function SolicitarLocacao() {
                     name="data_devolucao"
                     value={form.data_devolucao}
                     onChange={handleChange}
-                    className="w-full rounded-2xl border border-slate-300 px-4 py-3 outline-none focus:border-emerald-500"
+                    className="block w-full min-w-0 max-w-full rounded-2xl border border-slate-300 px-4 py-3 outline-none focus:border-emerald-500"
                     disabled={salvando}
                   />
                 </div>
