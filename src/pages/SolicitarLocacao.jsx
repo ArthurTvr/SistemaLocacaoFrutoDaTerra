@@ -3,6 +3,7 @@ import { supabase } from "../lib/supabase";
 import { withTimeout } from "../lib/withTimeout";
 import logo from "../assets/images/logo.png";
 
+
 const FORM_INICIAL = {
   nome: "",
   telefone: "",
@@ -111,16 +112,18 @@ export default function SolicitarLocacao() {
 
   const totalReferenciaDiaria = useMemo(() => {
     return itens.reduce((acc, item) => {
-      return acc + Number(item.valor_diaria || 0) * Number(item.quantidade || 0);
+      return (
+        acc + Number(item.valor_diaria || 0) * Number(item.quantidade || 0)
+      );
     }, 0);
   }, [itens]);
 
   const metadeTotal = useMemo(() => totalLocacao / 2, [totalLocacao]);
 
   const categorias = useMemo(() => {
-    return [...new Set(equipamentos.map((eq) => eq.categoria).filter(Boolean))].sort(
-      (a, b) => a.localeCompare(b)
-    );
+    return [
+      ...new Set(equipamentos.map((eq) => eq.categoria).filter(Boolean)),
+    ].sort((a, b) => a.localeCompare(b));
   }, [equipamentos]);
 
   const equipamentosFiltrados = useMemo(() => {
@@ -202,7 +205,7 @@ export default function SolicitarLocacao() {
           .eq("ativo", true)
           .order("categoria", { ascending: true })
           .order("nome", { ascending: true }),
-        30000
+        30000,
       );
 
       if (error) throw error;
@@ -239,7 +242,7 @@ export default function SolicitarLocacao() {
 
     if (!temVariacao) {
       const itemExistente = itens.find(
-        (item) => String(item.equipamento_id) === String(produto.id)
+        (item) => String(item.equipamento_id) === String(produto.id),
       );
 
       if (itemExistente) {
@@ -264,86 +267,86 @@ export default function SolicitarLocacao() {
     setErroModalProduto("");
   }
 
-  function adicionarAoCarrinho() {
-    setErro("");
-    setMensagem("");
-    setErroModalProduto("");
+function adicionarAoCarrinho() {
+  setErro("");
+  setMensagem("");
+  setErroModalProduto("");
 
-    if (!produtoSelecionado) {
-      setErroModalProduto("Selecione um produto.");
-      return;
-    }
+  if (!produtoSelecionado) {
+    setErroModalProduto("Selecione um produto.");
+    return;
+  }
 
-    const quantidade = Number(String(quantidadeSelecionada).replace(",", ".").trim());
+  const quantidade = Number(String(quantidadeSelecionada).replace(",", ".").trim());
 
-    if (Number.isNaN(quantidade) || quantidade <= 0 || !Number.isInteger(quantidade)) {
-      setErroModalProduto("Informe uma quantidade válida.");
-      return;
-    }
+  if (Number.isNaN(quantidade) || quantidade <= 0 || !Number.isInteger(quantidade)) {
+    setErroModalProduto("Informe uma quantidade válida.");
+    return;
+  }
 
-    if (produtoSelecionado.usa_tamanho && !tamanhoSelecionado.trim()) {
-      setErroModalProduto("Informe o tamanho.");
-      return;
-    }
+  if (produtoSelecionado.usa_tamanho && !tamanhoSelecionado.trim()) {
+    setErroModalProduto("Informe o tamanho.");
+    return;
+  }
 
-    if (produtoSelecionado.usa_numeracao && !numeracaoSelecionada.trim()) {
-      setErroModalProduto("Informe a numeração.");
-      return;
-    }
+  if (produtoSelecionado.usa_numeracao && !numeracaoSelecionada.trim()) {
+    setErroModalProduto("Informe a numeração.");
+    return;
+  }
 
-    const chaveTamanho = produtoSelecionado.usa_tamanho
-      ? tamanhoSelecionado.trim()
-      : null;
+  const chaveTamanho = produtoSelecionado.usa_tamanho
+    ? tamanhoSelecionado.trim()
+    : null;
 
-    const chaveNumeracao = produtoSelecionado.usa_numeracao
-      ? numeracaoSelecionada.trim()
-      : null;
+  const chaveNumeracao = produtoSelecionado.usa_numeracao
+    ? numeracaoSelecionada.trim()
+    : null;
 
-    setItens((prev) => {
-      const itemExistente = prev.find((item) => {
-        return (
+  setItens((prev) => {
+    const itemExistente = prev.find((item) => {
+      return (
+        String(item.equipamento_id) === String(produtoSelecionado.id) &&
+        (item.tamanho || null) === chaveTamanho &&
+        (item.numeracao || null) === chaveNumeracao
+      );
+    });
+
+    if (itemExistente) {
+      return prev.map((item) => {
+        if (
           String(item.equipamento_id) === String(produtoSelecionado.id) &&
           (item.tamanho || null) === chaveTamanho &&
           (item.numeracao || null) === chaveNumeracao
-        );
+        ) {
+          return {
+            ...item,
+            quantidade,
+          };
+        }
+
+        return item;
       });
+    }
 
-      if (itemExistente) {
-        return prev.map((item) => {
-          if (
-            String(item.equipamento_id) === String(produtoSelecionado.id) &&
-            (item.tamanho || null) === chaveTamanho &&
-            (item.numeracao || null) === chaveNumeracao
-          ) {
-            return {
-              ...item,
-              quantidade: Number(item.quantidade) + quantidade,
-            };
-          }
+    return [
+      ...prev,
+      {
+        uid: crypto.randomUUID(),
+        equipamento_id: produtoSelecionado.id,
+        equipamento_nome: produtoSelecionado.nome,
+        imagem_url: produtoSelecionado.imagem_url || "",
+        categoria: produtoSelecionado.categoria || "Outros",
+        quantidade,
+        valor_diaria: Number(produtoSelecionado.valor_diaria),
+        tamanho: chaveTamanho,
+        numeracao: chaveNumeracao,
+      },
+    ];
+  });
 
-          return item;
-        });
-      }
-
-      return [
-        ...prev,
-        {
-          uid: crypto.randomUUID(),
-          equipamento_id: produtoSelecionado.id,
-          equipamento_nome: produtoSelecionado.nome,
-          imagem_url: produtoSelecionado.imagem_url || "",
-          categoria: produtoSelecionado.categoria || "Outros",
-          quantidade,
-          valor_diaria: Number(produtoSelecionado.valor_diaria),
-          tamanho: chaveTamanho,
-          numeracao: chaveNumeracao,
-        },
-      ];
-    });
-
-    setMensagem("Produto adicionado ao carrinho.");
-    fecharModalProduto();
-  }
+  setMensagem("Produto adicionado ao carrinho.");
+  fecharModalProduto();
+}
 
   function removerItem(uid) {
     setItens((prev) => prev.filter((item) => item.uid !== uid));
@@ -404,7 +407,7 @@ export default function SolicitarLocacao() {
         .select("*")
         .eq("telefone", telefoneLimpo)
         .maybeSingle(),
-      30000
+      30000,
     );
 
     if (erroBusca) throw erroBusca;
@@ -422,7 +425,7 @@ export default function SolicitarLocacao() {
         })
         .select()
         .single(),
-      30000
+      30000,
     );
 
     if (erroCriacao) throw erroCriacao;
@@ -459,7 +462,7 @@ export default function SolicitarLocacao() {
           })
           .select()
           .single(),
-        30000
+        30000,
       );
 
       if (error) throw error;
@@ -480,14 +483,14 @@ export default function SolicitarLocacao() {
 
       const { error: erroItens } = await withTimeout(
         supabase.from("itens_locacao").insert(itensParaSalvar),
-        30000
+        30000,
       );
 
       if (erroItens) throw erroItens;
 
       if (ativoRef.current) {
         setMensagem(
-          "Solicitação enviada com sucesso! Em breve entraremos em contato."
+          "Solicitação enviada com sucesso! Em breve entraremos em contato.",
         );
         setEtapaAtual(4);
         irParaTopo();
@@ -502,14 +505,14 @@ export default function SolicitarLocacao() {
               .from("itens_locacao")
               .delete()
               .eq("locacao_id", locacaoCriada.id),
-            5000
+            5000,
           );
         } catch {}
 
         try {
           await withTimeout(
             supabase.from("locacoes").delete().eq("id", locacaoCriada.id),
-            5000
+            5000,
           );
         } catch {}
       }
@@ -536,12 +539,19 @@ export default function SolicitarLocacao() {
 
   return (
     <div className="min-h-screen bg-slate-100">
-      <section ref={topoRef} className="relative overflow-hidden bg-slate-900 text-white">
+      <section
+        ref={topoRef}
+        className="relative overflow-hidden bg-slate-900 text-white"
+      >
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(16,185,129,0.18),transparent_35%),radial-gradient(circle_at_bottom_left,rgba(255,255,255,0.08),transparent_25%)]" />
         <div className="relative mx-auto max-w-7xl px-4 py-10 sm:px-6 sm:py-14">
           <div className="mx-auto max-w-5xl text-center">
             <div className="flex justify-center">
-              <img src={logo} alt="Fruto da Terra" className="h-24 w-auto sm:h-32" />
+              <img
+                src={logo}
+                alt="Fruto da Terra"
+                className="h-24 w-auto sm:h-32"
+              />
             </div>
 
             <h1 className="mt-6 text-3xl font-bold leading-tight sm:text-5xl">
@@ -581,8 +591,8 @@ export default function SolicitarLocacao() {
                   ativo
                     ? "bg-emerald-500 text-white"
                     : concluido
-                    ? "bg-emerald-100 text-emerald-700"
-                    : "bg-white text-slate-500"
+                      ? "bg-emerald-100 text-emerald-700"
+                      : "bg-white text-slate-500"
                 }`}
               >
                 {passo.id}. {passo.label}
@@ -624,7 +634,9 @@ export default function SolicitarLocacao() {
               </div>
 
               {carregando ? (
-                <div className="mt-6 text-slate-600">Carregando produtos...</div>
+                <div className="mt-6 text-slate-600">
+                  Carregando produtos...
+                </div>
               ) : equipamentosFiltrados.length === 0 ? (
                 <div className="mt-6 rounded-2xl border border-dashed border-slate-300 p-6 text-slate-500">
                   Nenhum produto encontrado.
@@ -681,7 +693,7 @@ export default function SolicitarLocacao() {
                           ))}
                         </div>
                       </div>
-                    )
+                    ),
                   )}
                 </div>
               )}
@@ -766,12 +778,15 @@ export default function SolicitarLocacao() {
                   </>
                 ) : (
                   <>
-                    <p className="text-sm text-slate-500">Valor de referência</p>
+                    <p className="text-sm text-slate-500">
+                      Valor de referência
+                    </p>
                     <p className="text-2xl font-bold text-slate-800">
                       {formatarMoeda(totalReferenciaDiaria)}
                     </p>
                     <p className="mt-1 text-sm text-slate-500">
-                      Valor referente a 1 diária. O total final será calculado após informar as datas.
+                      Valor referente a 1 diária. O total final será calculado
+                      após informar as datas.
                     </p>
                   </>
                 )}
@@ -1055,10 +1070,18 @@ export default function SolicitarLocacao() {
               !produtoSelecionado.usa_numeracao &&
               itens.some(
                 (item) =>
-                  String(item.equipamento_id) === String(produtoSelecionado.id)
+                  String(item.equipamento_id) === String(produtoSelecionado.id),
               ) && (
                 <p className="mt-2 text-sm text-amber-600">
-                  Este item já está no carrinho. A nova quantidade será somada à existente.
+                  Você já possui{" "}
+                  {
+                    itens.find(
+                      (item) =>
+                        String(item.equipamento_id) ===
+                        String(produtoSelecionado.id),
+                    )?.quantidade
+                  }{" "}
+                  desse item no carrinho. Escreva a NOVA quantidade que deseja.
                 </p>
               )}
 

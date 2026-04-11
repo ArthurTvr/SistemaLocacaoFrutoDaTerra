@@ -1,4 +1,4 @@
-export async function withTimeout(promise, ms = 50000) {
+export async function withTimeout(promise, ms = 50000000) {
   let timeoutId;
 
   const timeoutPromise = new Promise((_, reject) => {

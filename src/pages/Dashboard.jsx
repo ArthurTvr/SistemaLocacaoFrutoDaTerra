@@ -79,13 +79,13 @@ export default function Dashboard() {
               )
             `)
             .order("created_at", { ascending: false }),
-          30000
+          45000
         ),
         withTimeout(
           supabase
             .from("equipamentos")
             .select("id, nome, quantidade_total, ativo"),
-          30000
+          45000
         ),
         withTimeout(
           supabase
@@ -103,7 +103,7 @@ export default function Dashboard() {
                 status
               )
             `),
-          30000
+          45000
         ),
       ]);
 

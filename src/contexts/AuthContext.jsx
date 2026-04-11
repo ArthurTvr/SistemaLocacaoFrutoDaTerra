@@ -94,17 +94,18 @@ export function AuthProvider({ children }) {
     );
   }
 
-  async function signOut() {
-    try {
-      await withTimeout(supabase.auth.signOut(), 15000);
-    } catch (err) {
-      console.error("Erro ao sair:", err);
-    } finally {
-      setSession(null);
-      setUser(null);
-      setProfile(null);
-    }
+async function signOut() {
+  try {
+    await supabase.auth.signOut();
+  } catch (err) {
+    console.error("Erro ao sair:", err);
+  } finally {
+    setSession(null);
+    setUser(null);
+    setProfile(null);
+    window.location.href = "/login";
   }
+}
 
   return (
     <AuthContext.Provider

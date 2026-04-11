@@ -63,7 +63,7 @@ export default function EquipamentosPage() {
           .select("*")
           .order("categoria", { ascending: true })
           .order("nome", { ascending: true }),
-        15000
+        15000,
       );
 
       if (error) throw error;
@@ -122,11 +122,11 @@ export default function EquipamentosPage() {
     e.preventDefault();
 
     const valorDiariaNumero = Number(
-      String(form.valor_diaria).replace(",", ".").trim()
+      String(form.valor_diaria).replace(",", ".").trim(),
     );
 
     const quantidadeTotalNumero = Number(
-      String(form.quantidade_total).replace(",", ".").trim()
+      String(form.quantidade_total).replace(",", ".").trim(),
     );
 
     if (!form.nome.trim()) {
@@ -176,32 +176,36 @@ export default function EquipamentosPage() {
             .from("equipamentos")
             .update(payload)
             .eq("id", equipamentoEditando.id),
-          15000
+          45000,
         );
 
         if (error) throw error;
 
         if (ativoRef.current) {
           setMensagem("Equipamento atualizado com sucesso.");
+          limparFormulario();
         }
       } else {
-        const { error } = await withTimeout(
-          supabase.from("equipamentos").insert(payload).select(),
-          15000
+        const { data, error } = await withTimeout(
+          supabase.from("equipamentos").insert(payload).select().single(),
+          45000,
         );
 
         if (error) throw error;
 
         if (ativoRef.current) {
           setMensagem("Equipamento cadastrado com sucesso.");
+          limparFormulario();
+
+          if (data) {
+            setEquipamentos((prev) => [data, ...prev]);
+          }
         }
       }
 
-      if (ativoRef.current) {
-        limparFormulario();
-      }
-
-      await buscarEquipamentos();
+      buscarEquipamentos().catch((err) => {
+        console.error("Erro ao atualizar lista após salvar:", err);
+      });
     } catch (err) {
       console.error("Erro ao salvar equipamento:", err);
 
@@ -217,7 +221,7 @@ export default function EquipamentosPage() {
 
   async function excluirEquipamento(id) {
     const confirmar = window.confirm(
-      "Deseja realmente excluir este equipamento?"
+      "Deseja realmente excluir este equipamento?",
     );
     if (!confirmar) return;
 
@@ -227,7 +231,7 @@ export default function EquipamentosPage() {
     try {
       const { error } = await withTimeout(
         supabase.from("equipamentos").delete().eq("id", id),
-        15000
+        15000,
       );
 
       if (error) throw error;
@@ -414,8 +418,8 @@ export default function EquipamentosPage() {
                 {salvando
                   ? "Salvando..."
                   : equipamentoEditando
-                  ? "Atualizar"
-                  : "Cadastrar"}
+                    ? "Atualizar"
+                    : "Cadastrar"}
               </button>
 
               <button
@@ -446,7 +450,9 @@ export default function EquipamentosPage() {
           </div>
 
           {carregando ? (
-            <div className="mt-6 text-slate-600">Carregando equipamentos...</div>
+            <div className="mt-6 text-slate-600">
+              Carregando equipamentos...
+            </div>
           ) : equipamentos.length === 0 ? (
             <div className="mt-6 rounded-2xl border border-dashed border-slate-300 p-6 text-slate-500">
               Nenhum equipamento cadastrado.
