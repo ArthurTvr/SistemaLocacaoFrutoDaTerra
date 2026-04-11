@@ -32,6 +32,21 @@ function formatarMoeda(valor) {
   });
 }
 
+function limparTelefone(valor) {
+  return String(valor || "").replace(/\D/g, "");
+}
+
+function formatarTelefone(valor) {
+  const numeros = limparTelefone(valor).slice(0, 11);
+
+  if (numeros.length <= 2) return numeros;
+  if (numeros.length <= 7) {
+    return `(${numeros.slice(0, 2)}) ${numeros.slice(2)}`;
+  }
+
+  return `(${numeros.slice(0, 2)}) ${numeros.slice(2, 7)}-${numeros.slice(7)}`;
+}
+
 function calcularQuantidadeDias(dataRetirada, dataDevolucao) {
   if (!dataRetirada || !dataDevolucao) return 0;
 
@@ -52,71 +67,84 @@ function agruparPorCategoria(equipamentos) {
     return acc;
   }, {});
 }
-function limparTelefone(valor) {
-  return String(valor || "").replace(/\D/g, "");
-}
 
-function formatarTelefone(valor) {
-  const numeros = limparTelefone(valor).slice(0, 11);
-
-  if (numeros.length <= 2) {
-    return numeros;
-  }
-
-  if (numeros.length <= 7) {
-    return `(${numeros.slice(0, 2)}) ${numeros.slice(2)}`;
-  }
-
-  return `(${numeros.slice(0, 2)}) ${numeros.slice(2, 7)}-${numeros.slice(7)}`;
-}
 export default function SolicitarLocacao() {
   const ativoRef = useRef(true);
-  const formularioRef = useRef(null);
-  const topoFeedbackRef = useRef(null);
-  const feedbackModalRef = useRef(null);
+  const topoRef = useRef(null);
 
   const [equipamentos, setEquipamentos] = useState([]);
   const [itens, setItens] = useState([]);
   const [form, setForm] = useState(FORM_INICIAL);
 
+  const [etapaAtual, setEtapaAtual] = useState(1);
   const [carregando, setCarregando] = useState(true);
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState("");
   const [mensagem, setMensagem] = useState("");
-  const [erroModal, setErroModal] = useState("");
 
-  const [modalEquipamentosAberto, setModalEquipamentosAberto] = useState(false);
-  const [equipamentoModalSelecionado, setEquipamentoModalSelecionado] =
-    useState(null);
-  const [quantidadeModal, setQuantidadeModal] = useState("1");
-  const [tamanhoModal, setTamanhoModal] = useState("");
-  const [numeracaoModal, setNumeracaoModal] = useState("");
+  const [busca, setBusca] = useState("");
   const [categoriaSelecionada, setCategoriaSelecionada] = useState("");
+
+  const [modalProdutoAberto, setModalProdutoAberto] = useState(false);
+  const [erroModalProduto, setErroModalProduto] = useState("");
+  const [produtoSelecionado, setProdutoSelecionado] = useState(null);
+  const [quantidadeSelecionada, setQuantidadeSelecionada] = useState("1");
+  const [tamanhoSelecionado, setTamanhoSelecionado] = useState("");
+  const [numeracaoSelecionada, setNumeracaoSelecionada] = useState("");
 
   const quantidadeDias = useMemo(() => {
     return calcularQuantidadeDias(form.data_retirada, form.data_devolucao);
   }, [form.data_retirada, form.data_devolucao]);
 
   const totalLocacao = useMemo(() => {
-    return itens.reduce((acc, item) => acc + Number(item.subtotal || 0), 0);
-  }, [itens]);
+    if (quantidadeDias <= 0) return 0;
+
+    return itens.reduce((acc, item) => {
+      return (
+        acc +
+        Number(item.valor_diaria || 0) *
+          Number(item.quantidade || 0) *
+          quantidadeDias
+      );
+    }, 0);
+  }, [itens, quantidadeDias]);
+
+  const metadeTotal = useMemo(() => totalLocacao / 2, [totalLocacao]);
 
   const categorias = useMemo(() => {
-    return [
-      ...new Set(equipamentos.map((eq) => eq.categoria).filter(Boolean)),
-    ].sort((a, b) => a.localeCompare(b));
+    return [...new Set(equipamentos.map((eq) => eq.categoria).filter(Boolean))].sort(
+      (a, b) => a.localeCompare(b)
+    );
   }, [equipamentos]);
 
   const equipamentosFiltrados = useMemo(() => {
-    if (!categoriaSelecionada) return equipamentos;
-    return equipamentos.filter(
-      (equipamento) => equipamento.categoria === categoriaSelecionada,
-    );
-  }, [equipamentos, categoriaSelecionada]);
+    const termo = busca.trim().toLowerCase();
+
+    return equipamentos.filter((equipamento) => {
+      const bateCategoria = categoriaSelecionada
+        ? equipamento.categoria === categoriaSelecionada
+        : true;
+
+      const bateBusca = termo
+        ? `${equipamento.nome} ${equipamento.descricao || ""} ${equipamento.categoria || ""}`
+            .toLowerCase()
+            .includes(termo)
+        : true;
+
+      return bateCategoria && bateBusca;
+    });
+  }, [equipamentos, categoriaSelecionada, busca]);
 
   const equipamentosPorCategoria = useMemo(() => {
     return agruparPorCategoria(equipamentosFiltrados);
   }, [equipamentosFiltrados]);
+
+  const passos = [
+    { id: 1, label: "Carrinho" },
+    { id: 2, label: "Seus dados" },
+    { id: 3, label: "Pagamento" },
+    { id: 4, label: "Confirmação" },
+  ];
 
   useEffect(() => {
     ativoRef.current = true;
@@ -130,7 +158,7 @@ export default function SolicitarLocacao() {
   useEffect(() => {
     const overflowAnterior = document.body.style.overflow;
 
-    if (modalEquipamentosAberto) {
+    if (modalProdutoAberto) {
       document.body.style.overflow = "hidden";
     } else {
       document.body.style.overflow = overflowAnterior || "";
@@ -139,28 +167,19 @@ export default function SolicitarLocacao() {
     return () => {
       document.body.style.overflow = overflowAnterior || "";
     };
-  }, [modalEquipamentosAberto]);
+  }, [modalProdutoAberto]);
 
-  function mostrarErroPagina(texto) {
-    setErro(texto);
-
-    requestAnimationFrame(() => {
-      topoFeedbackRef.current?.scrollIntoView({
-        behavior: "smooth",
-        block: "start",
-      });
+  function irParaTopo() {
+    topoRef.current?.scrollIntoView({
+      behavior: "smooth",
+      block: "start",
     });
   }
 
-  function mostrarErroModal(texto) {
-    setErroModal(texto);
-
-    requestAnimationFrame(() => {
-      feedbackModalRef.current?.scrollIntoView({
-        behavior: "smooth",
-        block: "start",
-      });
-    });
+  function mostrarErro(texto) {
+    setErro(texto);
+    setMensagem("");
+    irParaTopo();
   }
 
   async function buscarEquipamentos() {
@@ -177,7 +196,7 @@ export default function SolicitarLocacao() {
           .eq("ativo", true)
           .order("categoria", { ascending: true })
           .order("nome", { ascending: true }),
-        30000,
+        30000
       );
 
       if (error) throw error;
@@ -190,7 +209,6 @@ export default function SolicitarLocacao() {
 
       if (ativoRef.current) {
         setErro(traduzirErro(err));
-        setEquipamentos([]);
       }
     } finally {
       if (ativoRef.current) {
@@ -208,106 +226,63 @@ export default function SolicitarLocacao() {
     }));
   }
 
-  function limparTudo() {
-    setForm(FORM_INICIAL);
-    setItens([]);
+  function abrirModalProduto(produto) {
+    setProdutoSelecionado(produto);
+    setQuantidadeSelecionada("1");
+    setTamanhoSelecionado("");
+    setNumeracaoSelecionada("");
+    setErroModalProduto("");
+    setModalProdutoAberto(true);
+  }
+
+  function fecharModalProduto() {
+    setModalProdutoAberto(false);
+    setProdutoSelecionado(null);
+    setQuantidadeSelecionada("1");
+    setTamanhoSelecionado("");
+    setNumeracaoSelecionada("");
+    setErroModalProduto("");
+  }
+
+  function adicionarAoCarrinho() {
     setErro("");
     setMensagem("");
-    fecharModalEquipamentos();
-  }
+    setErroModalProduto("");
 
-  function abrirModalEquipamentos() {
-    setErro("");
-    setMensagem("");
-    setErroModal("");
-
-    if (!form.data_retirada || !form.data_devolucao) {
-      mostrarErroPagina(
-        "Informe a data de retirada e a data de devolução antes de adicionar equipamentos.",
-      );
+    if (!produtoSelecionado) {
+      setErroModalProduto("Selecione um produto.");
       return;
     }
 
-    if (quantidadeDias <= 0) {
-      mostrarErroPagina(
-        "A data de devolução deve ser maior que a data de retirada.",
-      );
+    const quantidade = Number(String(quantidadeSelecionada).replace(",", ".").trim());
+
+    if (Number.isNaN(quantidade) || quantidade <= 0 || !Number.isInteger(quantidade)) {
+      setErroModalProduto("Informe uma quantidade válida.");
       return;
     }
 
-    setErro("");
-    setModalEquipamentosAberto(true);
-  }
-
-  function fecharModalEquipamentos() {
-    setModalEquipamentosAberto(false);
-    setEquipamentoModalSelecionado(null);
-    setQuantidadeModal("1");
-    setTamanhoModal("");
-    setNumeracaoModal("");
-    setErroModal("");
-  }
-
-  function selecionarEquipamento(equipamento) {
-    setEquipamentoModalSelecionado(equipamento);
-    setQuantidadeModal("1");
-    setTamanhoModal("");
-    setNumeracaoModal("");
-    setErroModal("");
-  }
-
-  function voltarAoCatalogo() {
-    setEquipamentoModalSelecionado(null);
-    setQuantidadeModal("1");
-    setTamanhoModal("");
-    setNumeracaoModal("");
-    setErroModal("");
-  }
-
-  function adicionarItemDoModal() {
-    setErro("");
-    setMensagem("");
-    setErroModal("");
-
-    if (!equipamentoModalSelecionado) {
-      mostrarErroModal("Selecione um equipamento.");
+    if (produtoSelecionado.usa_tamanho && !tamanhoSelecionado.trim()) {
+      setErroModalProduto("Informe o tamanho.");
       return;
     }
 
-    const quantidade = Number(String(quantidadeModal).replace(",", ".").trim());
-
-    if (
-      Number.isNaN(quantidade) ||
-      quantidade <= 0 ||
-      !Number.isInteger(quantidade)
-    ) {
-      mostrarErroModal("Informe uma quantidade válida.");
+    if (produtoSelecionado.usa_numeracao && !numeracaoSelecionada.trim()) {
+      setErroModalProduto("Informe a numeração.");
       return;
     }
 
-    if (equipamentoModalSelecionado.usa_tamanho && !tamanhoModal.trim()) {
-      mostrarErroModal("Informe o tamanho.");
-      return;
-    }
-
-    if (equipamentoModalSelecionado.usa_numeracao && !numeracaoModal.trim()) {
-      mostrarErroModal("Informe a numeração.");
-      return;
-    }
-
-    const chaveTamanho = equipamentoModalSelecionado.usa_tamanho
-      ? tamanhoModal.trim()
+    const chaveTamanho = produtoSelecionado.usa_tamanho
+      ? tamanhoSelecionado.trim()
       : null;
 
-    const chaveNumeracao = equipamentoModalSelecionado.usa_numeracao
-      ? numeracaoModal.trim()
+    const chaveNumeracao = produtoSelecionado.usa_numeracao
+      ? numeracaoSelecionada.trim()
       : null;
 
     setItens((prev) => {
       const itemExistente = prev.find((item) => {
         return (
-          String(item.equipamento_id) ===
-            String(equipamentoModalSelecionado.id) &&
+          String(item.equipamento_id) === String(produtoSelecionado.id) &&
           (item.tamanho || null) === chaveTamanho &&
           (item.numeracao || null) === chaveNumeracao
         );
@@ -316,19 +291,13 @@ export default function SolicitarLocacao() {
       if (itemExistente) {
         return prev.map((item) => {
           if (
-            String(item.equipamento_id) ===
-              String(equipamentoModalSelecionado.id) &&
+            String(item.equipamento_id) === String(produtoSelecionado.id) &&
             (item.tamanho || null) === chaveTamanho &&
             (item.numeracao || null) === chaveNumeracao
           ) {
-            const novaQuantidade = Number(item.quantidade) + quantidade;
             return {
               ...item,
-              quantidade: novaQuantidade,
-              subtotal:
-                novaQuantidade *
-                Number(item.valor_diaria) *
-                Number(item.quantidade_dias),
+              quantidade: Number(item.quantidade) + quantidade,
             };
           }
 
@@ -336,44 +305,78 @@ export default function SolicitarLocacao() {
         });
       }
 
-      const subtotalNovoItem =
-        quantidade *
-        Number(equipamentoModalSelecionado.valor_diaria) *
-        quantidadeDias;
-
       return [
         ...prev,
         {
           uid: crypto.randomUUID(),
-          equipamento_id: equipamentoModalSelecionado.id,
-          equipamento_nome: equipamentoModalSelecionado.nome,
-          imagem_url: equipamentoModalSelecionado.imagem_url || "",
-          categoria: equipamentoModalSelecionado.categoria || "Outros",
+          equipamento_id: produtoSelecionado.id,
+          equipamento_nome: produtoSelecionado.nome,
+          imagem_url: produtoSelecionado.imagem_url || "",
+          categoria: produtoSelecionado.categoria || "Outros",
           quantidade,
-          valor_diaria: Number(equipamentoModalSelecionado.valor_diaria),
-          quantidade_dias: quantidadeDias,
-          subtotal: subtotalNovoItem,
+          valor_diaria: Number(produtoSelecionado.valor_diaria),
           tamanho: chaveTamanho,
           numeracao: chaveNumeracao,
         },
       ];
     });
 
-    setMensagem("Equipamento adicionado ao carrinho.");
-    voltarAoCatalogo();
+    setMensagem("Produto adicionado ao carrinho.");
+    fecharModalProduto();
   }
 
   function removerItem(uid) {
     setItens((prev) => prev.filter((item) => item.uid !== uid));
   }
 
-  async function buscarOuCriarCliente() {
-    const telefoneLimpo = limparTelefone(form.telefone);
-
-    if (telefoneLimpo.length < 11) {
-      mostrarErroPagina("Informe um telefone válido.");
+  function irParaEtapaDados() {
+    if (itens.length === 0) {
+      mostrarErro("Adicione pelo menos um item ao carrinho.");
       return;
     }
+
+    setErro("");
+    setMensagem("");
+    setEtapaAtual(2);
+    irParaTopo();
+  }
+
+  function irParaEtapaPagamento() {
+    const telefoneLimpo = limparTelefone(form.telefone);
+
+    if (!form.nome.trim()) {
+      mostrarErro("Informe seu nome.");
+      return;
+    }
+
+    if (telefoneLimpo.length < 11) {
+      mostrarErro("Informe um telefone válido.");
+      return;
+    }
+
+    if (!form.data_retirada || !form.data_devolucao) {
+      mostrarErro("Informe a data de retirada e devolução.");
+      return;
+    }
+
+    if (quantidadeDias <= 0) {
+      mostrarErro("A data de devolução deve ser maior que a data de retirada.");
+      return;
+    }
+
+    if (itens.length === 0) {
+      mostrarErro("Adicione pelo menos um item ao carrinho.");
+      return;
+    }
+
+    setErro("");
+    setMensagem("");
+    setEtapaAtual(3);
+    irParaTopo();
+  }
+
+  async function buscarOuCriarCliente() {
+    const telefoneLimpo = limparTelefone(form.telefone);
 
     const { data: clienteExistente, error: erroBusca } = await withTimeout(
       supabase
@@ -381,7 +384,7 @@ export default function SolicitarLocacao() {
         .select("*")
         .eq("telefone", telefoneLimpo)
         .maybeSingle(),
-      30000,
+      30000
     );
 
     if (erroBusca) throw erroBusca;
@@ -399,7 +402,7 @@ export default function SolicitarLocacao() {
         })
         .select()
         .single(),
-      30000,
+      30000
     );
 
     if (erroCriacao) throw erroCriacao;
@@ -407,35 +410,9 @@ export default function SolicitarLocacao() {
     return novoCliente;
   }
 
-  async function handleSubmit(e) {
-    e.preventDefault();
-
-    if (!form.nome.trim()) {
-      mostrarErroPagina("Informe seu nome.");
-      return;
-    }
-
-    const telefoneLimpo = limparTelefone(form.telefone);
-
-    if (telefoneLimpo.length < 11) {
-      mostrarErroPagina("Informe um telefone válido.");
-      return;
-    }
-
-    if (!form.data_retirada || !form.data_devolucao) {
-      mostrarErroPagina("Informe a data de retirada e devolução.");
-      return;
-    }
-
-    if (quantidadeDias <= 0) {
-      mostrarErroPagina(
-        "A data de devolução deve ser maior que a data de retirada.",
-      );
-      return;
-    }
-
-    if (itens.length === 0) {
-      mostrarErroPagina("Adicione pelo menos um equipamento.");
+  async function confirmarPedido() {
+    if (!form.forma_pagamento) {
+      mostrarErro("Selecione a forma de pagamento.");
       return;
     }
 
@@ -462,7 +439,7 @@ export default function SolicitarLocacao() {
           })
           .select()
           .single(),
-        30000,
+        30000
       );
 
       if (error) throw error;
@@ -474,25 +451,26 @@ export default function SolicitarLocacao() {
         equipamento_id: item.equipamento_id,
         quantidade: item.quantidade,
         valor_diaria: item.valor_diaria,
-        quantidade_dias: item.quantidade_dias,
-        subtotal: item.subtotal,
+        quantidade_dias: quantidadeDias,
+        subtotal:
+          Number(item.valor_diaria) * Number(item.quantidade) * quantidadeDias,
         tamanho: item.tamanho,
         numeracao: item.numeracao,
       }));
 
       const { error: erroItens } = await withTimeout(
         supabase.from("itens_locacao").insert(itensParaSalvar),
-        30000,
+        30000
       );
 
       if (erroItens) throw erroItens;
 
       if (ativoRef.current) {
         setMensagem(
-          "Solicitação enviada com sucesso! Em breve entraremos em contato.",
+          "Solicitação enviada com sucesso! Em breve entraremos em contato."
         );
-        setForm(FORM_INICIAL);
-        setItens([]);
+        setEtapaAtual(4);
+        irParaTopo();
       }
     } catch (err) {
       console.error("Erro ao salvar locação:", err);
@@ -504,24 +482,20 @@ export default function SolicitarLocacao() {
               .from("itens_locacao")
               .delete()
               .eq("locacao_id", locacaoCriada.id),
-            5000,
+            5000
           );
-        } catch (rollbackItensErr) {
-          console.error("Erro ao desfazer itens da locação:", rollbackItensErr);
-        }
+        } catch {}
 
         try {
           await withTimeout(
             supabase.from("locacoes").delete().eq("id", locacaoCriada.id),
-            5000,
+            5000
           );
-        } catch (rollbackLocacaoErr) {
-          console.error("Erro ao desfazer locação:", rollbackLocacaoErr);
-        }
+        } catch {}
       }
 
       if (ativoRef.current) {
-        mostrarErroPagina(traduzirErro(err));
+        mostrarErro(traduzirErro(err));
       }
     } finally {
       if (ativoRef.current) {
@@ -530,25 +504,24 @@ export default function SolicitarLocacao() {
     }
   }
 
-  function rolarParaFormulario() {
-    formularioRef.current?.scrollIntoView({
-      behavior: "smooth",
-      block: "start",
-    });
+  function reiniciarFluxo() {
+    setItens([]);
+    setForm(FORM_INICIAL);
+    setErro("");
+    setMensagem("");
+    setEtapaAtual(1);
+    fecharModalProduto();
+    irParaTopo();
   }
 
   return (
     <div className="min-h-screen bg-slate-100">
-      <section className="relative overflow-hidden bg-slate-900 text-white">
+      <section ref={topoRef} className="relative overflow-hidden bg-slate-900 text-white">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(16,185,129,0.18),transparent_35%),radial-gradient(circle_at_bottom_left,rgba(255,255,255,0.08),transparent_25%)]" />
         <div className="relative mx-auto max-w-7xl px-4 py-10 sm:px-6 sm:py-14">
-          <div className="mx-auto max-w-4xl text-center">
+          <div className="mx-auto max-w-5xl text-center">
             <div className="flex justify-center">
-              <img
-                src={logo}
-                alt="Fruto da Terra"
-                className="h-24 w-auto sm:h-32"
-              />
+              <img src={logo} alt="Fruto da Terra" className="h-24 w-auto sm:h-32" />
             </div>
 
             <h1 className="mt-6 text-3xl font-bold leading-tight sm:text-5xl">
@@ -556,534 +529,546 @@ export default function SolicitarLocacao() {
             </h1>
 
             <p className="mx-auto mt-4 max-w-2xl text-sm text-slate-200 sm:text-lg">
-              Escolha as datas, monte seu carrinho e envie sua solicitação de
-              forma rápida e simples direto pelo celular.
+              Explore o catálogo, monte seu carrinho e finalize sua solicitação
+              em poucos passos.
             </p>
-
-            <div className="mt-6 flex justify-center">
-              <button
-                type="button"
-                onClick={rolarParaFormulario}
-                className="rounded-2xl bg-emerald-500 px-6 py-4 text-sm font-semibold text-white hover:bg-emerald-600"
-              >
-                Fazer minha locação
-              </button>
-            </div>
-
-            <div className="mt-8 grid gap-3 sm:grid-cols-3">
-              <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-                <p className="text-sm font-semibold text-white">
-                  Equipamentos de qualidade
-                </p>
-                <p className="mt-1 text-xs text-slate-300">
-                  Produtos selecionados para camping e trekking.
-                </p>
-              </div>
-
-              <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-                <p className="text-sm font-semibold text-white">
-                  Reserva rápida
-                </p>
-                <p className="mt-1 text-xs text-slate-300">
-                  Solicite tudo em poucos minutos pelo celular.
-                </p>
-              </div>
-
-              <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-                <p className="text-sm font-semibold text-white">
-                  Atendimento simples
-                </p>
-                <p className="mt-1 text-xs text-slate-300">
-                  Envie a solicitação e receba a confirmação.
-                </p>
-              </div>
-            </div>
           </div>
         </div>
       </section>
 
-      <section
-        ref={formularioRef}
-        className="mx-auto max-w-7xl space-y-4 px-4 py-5 sm:space-y-6 sm:px-6 sm:py-8"
-      >
+      <section className="mx-auto max-w-7xl px-4 py-5 sm:px-6 sm:py-8">
         {erro && (
-          <div
-            ref={topoFeedbackRef}
-            className="rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-600"
-          >
+          <div className="mb-4 rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-600">
             {erro}
           </div>
         )}
 
         {mensagem && (
-          <div className="rounded-2xl bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+          <div className="mb-4 rounded-2xl bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
             {mensagem}
           </div>
         )}
 
-        <div className="grid gap-4 xl:grid-cols-[420px_1fr]">
-          <div className="rounded-3xl bg-white p-5 shadow-sm sm:p-6">
-            <h2 className="text-lg font-semibold text-slate-800 sm:text-xl">
-              Seus dados e locação
-            </h2>
+        <div className="mb-6 flex flex-wrap gap-3">
+          {passos.map((passo) => {
+            const ativo = etapaAtual === passo.id;
+            const concluido = etapaAtual > passo.id;
 
-            <form onSubmit={handleSubmit} className="mt-5 space-y-4">
-              <div>
-                <label className="mb-1 block text-sm font-medium text-slate-700">
-                  Nome
-                </label>
-                <input
-                  type="text"
-                  name="nome"
-                  value={form.nome}
-                  onChange={handleChange}
-                  className="w-full rounded-2xl border border-slate-300 px-4 py-3 outline-none focus:border-emerald-500"
-                  placeholder="Seu nome"
-                  disabled={salvando}
-                />
-              </div>
-
-              <div>
-                <label className="mb-1 block text-sm font-medium text-slate-700">
-                  Telefone
-                </label>
-                <input
-                  type="tel"
-                  name="telefone"
-                  value={form.telefone}
-                  onChange={handleChange}
-                  inputMode="numeric"
-                  className="w-full rounded-2xl border border-slate-300 px-4 py-3 outline-none focus:border-emerald-500"
-                  placeholder="(00) 00000-0000"
-                  disabled={salvando}
-                />
-              </div>
-
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="min-w-0">
-                  <label className="mb-1 block text-sm font-medium text-slate-700">
-                    Data de retirada
-                  </label>
-                  <input
-                    type="date"
-                    name="data_retirada"
-                    value={form.data_retirada}
-                    onChange={handleChange}
-                    className="block w-full min-w-0 max-w-full rounded-2xl border border-slate-300 px-4 py-3 outline-none focus:border-emerald-500"
-                    disabled={salvando}
-                  />
-                </div>
-
-                <div className="min-w-0">
-                  <label className="mb-1 block text-sm font-medium text-slate-700">
-                    Data de devolução
-                  </label>
-                  <input
-                    type="date"
-                    name="data_devolucao"
-                    value={form.data_devolucao}
-                    onChange={handleChange}
-                    className="block w-full min-w-0 max-w-full rounded-2xl border border-slate-300 px-4 py-3 outline-none focus:border-emerald-500"
-                    disabled={salvando}
-                  />
-                </div>
-              </div>
-
-              <div className="rounded-2xl border border-slate-200 p-4">
-                <h3 className="text-base font-semibold text-slate-800">
-                  Equipamentos
-                </h3>
-
-                <div className="mt-4 space-y-3">
-                  <div className="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-600">
-                    Quantidade de diárias: {quantidadeDias}
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={abrirModalEquipamentos}
-                    className="w-full rounded-2xl bg-slate-900 px-4 py-3 font-semibold text-white hover:bg-slate-800"
-                    disabled={salvando || carregando}
-                  >
-                    Adicionar equipamentos
-                  </button>
-                </div>
-              </div>
-
-              <div>
-                <label className="mb-1 block text-sm font-medium text-slate-700">
-                  Forma de pagamento
-                </label>
-                <select
-                  name="forma_pagamento"
-                  value={form.forma_pagamento}
-                  onChange={handleChange}
-                  className="w-full rounded-2xl border border-slate-300 px-4 py-3 outline-none focus:border-emerald-500"
-                  disabled={salvando}
-                >
-                  {FORMAS_PAGAMENTO.map((forma) => (
-                    <option key={forma.value} value={forma.value}>
-                      {forma.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="mb-1 block text-sm font-medium text-slate-700">
-                  Observações
-                </label>
-                <textarea
-                  name="observacoes"
-                  value={form.observacoes}
-                  onChange={handleChange}
-                  rows={3}
-                  className="w-full rounded-2xl border border-slate-300 px-4 py-3 outline-none focus:border-emerald-500"
-                  placeholder="Observações"
-                  disabled={salvando}
-                />
-              </div>
-
-              <div className="rounded-2xl bg-slate-50 px-4 py-4">
-                <p className="text-sm text-slate-500">Total da locação</p>
-                <p className="text-2xl font-bold text-slate-800">
-                  {formatarMoeda(totalLocacao)}
-                </p>
-              </div>
-
-              <div className="rounded-2xl bg-slate-50 px-4 py-4">
-                <p className="text-sm text-slate-500">
-                  Metade do valor total (50%)
-                </p>
-                <p className="text-2xl font-bold text-slate-800">
-                  {formatarMoeda(totalLocacao / 2)}
-                </p>
-              </div>
-
-              <div className="flex gap-3">
-                <button
-                  type="submit"
-                  disabled={salvando}
-                  className="flex-1 rounded-2xl bg-emerald-500 px-4 py-3 font-semibold text-white hover:bg-emerald-600 disabled:opacity-60"
-                >
-                  {salvando ? "Enviando..." : "Confirmar pedido"}
-                </button>
-
-                <button
-                  type="button"
-                  onClick={limparTudo}
-                  disabled={salvando}
-                  className="rounded-2xl border border-slate-300 px-4 py-3 font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60"
-                >
-                  Limpar
-                </button>
-              </div>
-            </form>
-          </div>
-
-          <div className="rounded-3xl bg-white p-5 shadow-sm sm:p-6 max-h-[60vh] md:h-[70vh] md:max-h-none flex flex-col">
-            <div className="flex items-center justify-between gap-3">
-              <h2 className="text-lg font-semibold text-slate-800 sm:text-xl">
-                Carrinho da locação
-              </h2>
-
-              <div className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
-                {itens.length} item(ns)
-              </div>
-            </div>
-
-            {itens.length === 0 ? (
-              <div className="mt-6 rounded-2xl border border-dashed border-slate-300 p-6 text-sm text-slate-500">
-                Nenhum equipamento adicionado.
-              </div>
-            ) : (
-              <div className="mt-6 flex-1 space-y-3 overflow-y-auto pr-2">
-                {itens.map((item) => (
-                  <div
-                    key={item.uid}
-                    className="rounded-2xl border border-slate-200 p-3 sm:p-4"
-                  >
-                    <div className="flex gap-3">
-                      {item.imagem_url ? (
-                        <img
-                          src={item.imagem_url}
-                          alt={item.equipamento_nome}
-                          className="h-20 w-20 rounded-xl bg-slate-100 object-contain p-1"
-                        />
-                      ) : (
-                        <div className="flex h-20 w-20 items-center justify-center rounded-xl bg-slate-100 text-xs text-slate-500">
-                          Sem imagem
-                        </div>
-                      )}
-
-                      <div className="min-w-0 flex-1">
-                        <h3 className="truncate text-base font-semibold text-slate-800">
-                          {item.equipamento_nome}
-                        </h3>
-                        <p className="text-sm text-slate-600">
-                          Categoria: {item.categoria}
-                        </p>
-                        <p className="text-sm text-slate-600">
-                          Quantidade: {item.quantidade}
-                        </p>
-                        <p className="text-sm text-slate-600">
-                          Diárias: {item.quantidade_dias}
-                        </p>
-
-                        {item.tamanho && (
-                          <p className="text-sm text-slate-600">
-                            Tamanho: {item.tamanho}
-                          </p>
-                        )}
-
-                        {item.numeracao && (
-                          <p className="text-sm text-slate-600">
-                            Numeração: {item.numeracao}
-                          </p>
-                        )}
-
-                        <p className="text-sm text-slate-600">
-                          Valor da diária: {formatarMoeda(item.valor_diaria)}
-                        </p>
-                        <p className="mt-1 text-sm font-semibold text-slate-800">
-                          Subtotal: {formatarMoeda(item.subtotal)}
-                        </p>
-
-                        <button
-                          type="button"
-                          onClick={() => removerItem(item.uid)}
-                          className="mt-3 rounded-2xl bg-red-500 px-4 py-2 text-sm font-medium text-white hover:bg-red-600"
-                        >
-                          Remover
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-      </section>
-
-      {modalEquipamentosAberto && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 backdrop-blur-sm p-3">
-          <div className="relative flex h-[75vh] w-full max-w-5xl flex-col rounded-3xl bg-white p-4 shadow-2xl sm:p-6">
-            <button
-              type="button"
-              onClick={fecharModalEquipamentos}
-              className="absolute right-3 top-3 rounded-xl bg-red-500 px-3 py-2 text-sm font-medium text-white hover:bg-red-600"
-            >
-              Voltar
-            </button>
-
-            <h3 className="mb-4 pr-16 text-xl font-bold text-slate-800 sm:text-2xl">
-              Escolher equipamentos
-            </h3>
-
-            {erroModal && (
+            return (
               <div
-                ref={feedbackModalRef}
-                className="mb-4 rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-600"
+                key={passo.id}
+                className={`rounded-full px-4 py-2 text-sm font-semibold ${
+                  ativo
+                    ? "bg-emerald-500 text-white"
+                    : concluido
+                    ? "bg-emerald-100 text-emerald-700"
+                    : "bg-white text-slate-500"
+                }`}
               >
-                {erroModal}
+                {passo.id}. {passo.label}
               </div>
-            )}
+            );
+          })}
+        </div>
 
-            <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center">
-              <select
-                value={categoriaSelecionada}
-                onChange={(e) => {
-                  setCategoriaSelecionada(e.target.value);
-                  setEquipamentoModalSelecionado(null);
-                  setErroModal("");
-                }}
-                className="rounded-2xl border border-slate-300 px-4 py-3 text-sm text-slate-700 outline-none focus:border-emerald-500"
-              >
-                <option value="">Todas as categorias</option>
-                {categorias.map((categoria) => (
-                  <option key={categoria} value={categoria}>
-                    {categoria}
-                  </option>
-                ))}
-              </select>
+        {etapaAtual === 1 && (
+          <div className="grid gap-6 xl:grid-cols-[1fr_360px]">
+            <div className="rounded-3xl bg-white p-5 shadow-sm sm:p-6">
+              <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                <h2 className="text-xl font-semibold text-slate-800">
+                  Catálogo de produtos
+                </h2>
 
-              {equipamentoModalSelecionado && (
-                <button
-                  type="button"
-                  onClick={voltarAoCatalogo}
-                  className="rounded-2xl border border-slate-300 bg-amber-500 px-4 py-3 text-sm font-medium text-white hover:bg-amber-600"
-                >
-                  Voltar ao catálogo
-                </button>
+                <div className="flex flex-col gap-3 sm:flex-row">
+                  <input
+                    type="text"
+                    value={busca}
+                    onChange={(e) => setBusca(e.target.value)}
+                    placeholder="Buscar produto"
+                    className="rounded-2xl border border-slate-300 px-4 py-3 outline-none focus:border-emerald-500"
+                  />
+
+                  <select
+                    value={categoriaSelecionada}
+                    onChange={(e) => setCategoriaSelecionada(e.target.value)}
+                    className="rounded-2xl border border-slate-300 px-4 py-3 outline-none focus:border-emerald-500"
+                  >
+                    <option value="">Todas as categorias</option>
+                    {categorias.map((categoria) => (
+                      <option key={categoria} value={categoria}>
+                        {categoria}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {carregando ? (
+                <div className="mt-6 text-slate-600">Carregando produtos...</div>
+              ) : equipamentosFiltrados.length === 0 ? (
+                <div className="mt-6 rounded-2xl border border-dashed border-slate-300 p-6 text-slate-500">
+                  Nenhum produto encontrado.
+                </div>
+              ) : (
+                <div className="mt-6 space-y-6">
+                  {Object.entries(equipamentosPorCategoria).map(
+                    ([categoria, itensCategoria]) => (
+                      <div key={categoria}>
+                        <h3 className="mb-3 text-lg font-semibold text-slate-800">
+                          {categoria}
+                        </h3>
+
+                        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                          {itensCategoria.map((produto) => (
+                            <div
+                              key={produto.id}
+                              className="rounded-2xl border border-slate-200 bg-white p-4"
+                            >
+                              <div className="flex h-40 items-center justify-center rounded-xl bg-slate-100 p-2">
+                                {produto.imagem_url ? (
+                                  <img
+                                    src={produto.imagem_url}
+                                    alt={produto.nome}
+                                    className="h-full w-full object-contain"
+                                  />
+                                ) : (
+                                  <span className="text-sm text-slate-500">
+                                    Sem imagem
+                                  </span>
+                                )}
+                              </div>
+
+                              <h4 className="mt-4 text-base font-semibold text-slate-800">
+                                {produto.nome}
+                              </h4>
+
+                              <p className="mt-1 text-sm text-slate-500">
+                                {produto.descricao || "Sem descrição"}
+                              </p>
+
+                              <p className="mt-3 text-lg font-bold text-slate-800">
+                                {formatarMoeda(produto.valor_diaria)} / diária
+                              </p>
+
+                              <button
+                                type="button"
+                                onClick={() => abrirModalProduto(produto)}
+                                className="mt-4 w-full rounded-2xl bg-slate-900 px-4 py-3 font-semibold text-white hover:bg-slate-800"
+                              >
+                                Adicionar ao carrinho
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )
+                  )}
+                </div>
               )}
             </div>
 
-            <div className="grid flex-1 gap-4 overflow-hidden lg:grid-cols-[1fr_300px]">
-              <div className="overflow-y-auto pr-1">
-                {carregando ? (
-                  <div className="text-slate-600">
-                    Carregando equipamentos...
-                  </div>
-                ) : equipamentosFiltrados.length === 0 ? (
-                  <div className="rounded-2xl border border-dashed border-slate-300 p-6 text-slate-500">
-                    Nenhum equipamento disponível no momento.
-                  </div>
-                ) : equipamentoModalSelecionado ? null : (
-                  <div className="space-y-5">
-                    {Object.entries(equipamentosPorCategoria).map(
-                      ([categoria, itensCategoria]) => (
-                        <div key={categoria}>
-                          <h4 className="mb-3 text-base font-semibold text-slate-800">
-                            {categoria}
-                          </h4>
+            <div className="rounded-3xl bg-white p-5 shadow-sm sm:p-6">
+              <div className="flex items-center justify-between gap-3">
+                <h2 className="text-xl font-semibold text-slate-800">
+                  Seu carrinho
+                </h2>
 
-                          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-                            {itensCategoria.map((equipamento) => (
-                              <button
-                                key={equipamento.id}
-                                type="button"
-                                onClick={() =>
-                                  selecionarEquipamento(equipamento)
-                                }
-                                className="rounded-2xl border border-slate-200 p-3 text-left transition hover:border-slate-300"
-                              >
-                                <div className="mb-3 flex h-20 items-center justify-center rounded-xl bg-slate-100 p-2">
-                                  {equipamento.imagem_url ? (
-                                    <img
-                                      src={equipamento.imagem_url}
-                                      alt={equipamento.nome}
-                                      className="h-full w-full object-contain"
-                                    />
-                                  ) : (
-                                    <span className="text-xs text-slate-500">
-                                      Sem imagem
-                                    </span>
-                                  )}
-                                </div>
-
-                                <h5 className="line-clamp-2 text-sm font-semibold text-slate-800">
-                                  {equipamento.nome}
-                                </h5>
-
-                                <p className="mt-1 text-sm text-slate-600">
-                                  {formatarMoeda(equipamento.valor_diaria)} por
-                                  dia
-                                </p>
-
-                                <p className="mt-1 line-clamp-2 text-xs text-slate-500">
-                                  {equipamento.descricao || "Sem descrição"}
-                                </p>
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-                      ),
-                    )}
-                  </div>
-                )}
+                <div className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
+                  {itens.length} item(ns)
+                </div>
               </div>
 
-              <div className="overflow-y-auto rounded-2xl border border-slate-200 p-4">
-                {!equipamentoModalSelecionado ? (
-                  <div className="flex h-full items-center justify-center text-center text-sm text-slate-500">
-                    Selecione um equipamento no catálogo para ver os detalhes.
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    <div className="flex h-28 items-center justify-center rounded-xl bg-slate-100 p-2">
-                      {equipamentoModalSelecionado.imagem_url ? (
-                        <img
-                          src={equipamentoModalSelecionado.imagem_url}
-                          alt={equipamentoModalSelecionado.nome}
-                          className="h-full w-full object-contain"
-                        />
-                      ) : (
-                        <span className="text-sm text-slate-500">
-                          Sem imagem
-                        </span>
-                      )}
-                    </div>
-
-                    <div>
-                      <h5 className="text-lg font-bold text-slate-800">
-                        {equipamentoModalSelecionado.nome}
-                      </h5>
-                      <p className="mt-1 text-sm text-slate-600">
-                        Categoria:{" "}
-                        {equipamentoModalSelecionado.categoria || "Outros"}
-                      </p>
-                      <p className="mt-1 text-sm text-slate-600">
-                        {formatarMoeda(
-                          equipamentoModalSelecionado.valor_diaria,
-                        )}{" "}
-                        por dia
-                      </p>
-                      <p className="mt-2 text-sm text-slate-500">
-                        {equipamentoModalSelecionado.descricao ||
-                          "Sem descrição"}
-                      </p>
-                    </div>
-
-                    <div>
-                      <label className="mb-1 block text-sm font-medium text-slate-700">
-                        Quantidade
-                      </label>
-                      <input
-                        type="number"
-                        min="1"
-                        value={quantidadeModal}
-                        onChange={(e) => setQuantidadeModal(e.target.value)}
-                        className="w-full rounded-2xl border border-slate-300 px-4 py-3 outline-none focus:border-emerald-500"
-                        placeholder="1"
-                      />
-                    </div>
-
-                    {equipamentoModalSelecionado.usa_tamanho && (
-                      <div>
-                        <label className="mb-1 block text-sm font-medium text-slate-700">
-                          Tamanho
-                        </label>
-                        <input
-                          type="text"
-                          value={tamanhoModal}
-                          onChange={(e) => setTamanhoModal(e.target.value)}
-                          className="w-full rounded-2xl border border-slate-300 px-4 py-3 outline-none focus:border-emerald-500"
-                          placeholder="Ex: P, M, G, GG"
-                        />
-                      </div>
-                    )}
-
-                    {equipamentoModalSelecionado.usa_numeracao && (
-                      <div>
-                        <label className="mb-1 block text-sm font-medium text-slate-700">
-                          Numeração
-                        </label>
-                        <input
-                          type="number"
-                          min="1"
-                          value={numeracaoModal}
-                          onChange={(e) => setNumeracaoModal(e.target.value)}
-                          className="w-full rounded-2xl border border-slate-300 px-4 py-3 outline-none focus:border-emerald-500"
-                          placeholder="Ex: 38, 39, 40"
-                        />
-                      </div>
-                    )}
-
-                    <div className="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-600">
-                      Diárias: {quantidadeDias}
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={adicionarItemDoModal}
-                      className="w-full rounded-2xl bg-emerald-500 px-4 py-3 font-semibold text-white hover:bg-emerald-600"
+              {itens.length === 0 ? (
+                <div className="mt-4 rounded-2xl border border-dashed border-slate-300 p-4 text-sm text-slate-500">
+                  Nenhum item adicionado.
+                </div>
+              ) : (
+                <div className="mt-4 space-y-3">
+                  {itens.map((item) => (
+                    <div
+                      key={item.uid}
+                      className="rounded-2xl border border-slate-200 p-3"
                     >
-                      Adicionar ao carrinho
-                    </button>
-                  </div>
-                )}
+                      <div className="flex gap-3">
+                        {item.imagem_url ? (
+                          <img
+                            src={item.imagem_url}
+                            alt={item.equipamento_nome}
+                            className="h-20 w-20 rounded-xl bg-slate-100 object-contain p-1"
+                          />
+                        ) : (
+                          <div className="flex h-20 w-20 items-center justify-center rounded-xl bg-slate-100 text-xs text-slate-500">
+                            Sem imagem
+                          </div>
+                        )}
+
+                        <div className="min-w-0 flex-1">
+                          <h3 className="text-base font-semibold text-slate-800">
+                            {item.equipamento_nome}
+                          </h3>
+                          <p className="text-sm text-slate-600">
+                            Quantidade: {item.quantidade}
+                          </p>
+                          {item.tamanho && (
+                            <p className="text-sm text-slate-600">
+                              Tamanho: {item.tamanho}
+                            </p>
+                          )}
+                          {item.numeracao && (
+                            <p className="text-sm text-slate-600">
+                              Numeração: {item.numeracao}
+                            </p>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => removerItem(item.uid)}
+                            className="mt-3 rounded-xl bg-red-500 px-4 py-2 text-sm font-medium text-white hover:bg-red-600"
+                          >
+                            Remover
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <div className="mt-5 rounded-2xl bg-slate-50 px-4 py-4">
+                <p className="text-sm text-slate-500">Total parcial</p>
+                <p className="text-2xl font-bold text-slate-800">
+                  {formatarMoeda(totalLocacao)}
+                </p>
+                <p className="mt-1 text-sm text-slate-500">
+                  O total final depende das datas escolhidas.
+                </p>
               </div>
+
+              <button
+                type="button"
+                onClick={irParaEtapaDados}
+                className="mt-5 w-full rounded-2xl bg-emerald-500 px-4 py-3 font-semibold text-white hover:bg-emerald-600"
+              >
+                Continuar
+              </button>
+            </div>
+          </div>
+        )}
+
+        {etapaAtual === 2 && (
+          <div className="grid gap-6 xl:grid-cols-[1fr_360px]">
+            <div className="rounded-3xl bg-white p-5 shadow-sm sm:p-6">
+              <h2 className="text-xl font-semibold text-slate-800">
+                Seus dados
+              </h2>
+
+              <div className="mt-5 space-y-4">
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-slate-700">
+                    Nome
+                  </label>
+                  <input
+                    type="text"
+                    name="nome"
+                    value={form.nome}
+                    onChange={handleChange}
+                    className="w-full rounded-2xl border border-slate-300 px-4 py-3 outline-none focus:border-emerald-500"
+                    placeholder="Seu nome"
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-slate-700">
+                    Telefone
+                  </label>
+                  <input
+                    type="tel"
+                    name="telefone"
+                    value={form.telefone}
+                    onChange={handleChange}
+                    inputMode="numeric"
+                    className="w-full rounded-2xl border border-slate-300 px-4 py-3 outline-none focus:border-emerald-500"
+                    placeholder="(00) 00000-0000"
+                  />
+                </div>
+
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="min-w-0">
+                    <label className="mb-1 block text-sm font-medium text-slate-700">
+                      Data de retirada
+                    </label>
+                    <input
+                      type="date"
+                      name="data_retirada"
+                      value={form.data_retirada}
+                      onChange={handleChange}
+                      className="block w-full min-w-0 max-w-full rounded-2xl border border-slate-300 px-4 py-3 outline-none focus:border-emerald-500"
+                    />
+                  </div>
+
+                  <div className="min-w-0">
+                    <label className="mb-1 block text-sm font-medium text-slate-700">
+                      Data de devolução
+                    </label>
+                    <input
+                      type="date"
+                      name="data_devolucao"
+                      value={form.data_devolucao}
+                      onChange={handleChange}
+                      className="block w-full min-w-0 max-w-full rounded-2xl border border-slate-300 px-4 py-3 outline-none focus:border-emerald-500"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setEtapaAtual(1)}
+                    className="rounded-2xl border border-slate-300 px-4 py-3 font-semibold text-slate-700 hover:bg-slate-50"
+                  >
+                    Voltar
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={irParaEtapaPagamento}
+                    className="flex-1 rounded-2xl bg-emerald-500 px-4 py-3 font-semibold text-white hover:bg-emerald-600"
+                  >
+                    Continuar
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="rounded-3xl bg-white p-5 shadow-sm sm:p-6">
+              <h2 className="text-xl font-semibold text-slate-800">
+                Resumo da locação
+              </h2>
+
+              <div className="mt-4 space-y-3 text-sm text-slate-600">
+                <p>Itens no carrinho: {itens.length}</p>
+                <p>Diárias: {quantidadeDias}</p>
+                <p className="text-lg font-bold text-slate-800">
+                  Total: {formatarMoeda(totalLocacao)}
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {etapaAtual === 3 && (
+          <div className="grid gap-6 xl:grid-cols-[1fr_360px]">
+            <div className="rounded-3xl bg-white p-5 shadow-sm sm:p-6">
+              <h2 className="text-xl font-semibold text-slate-800">
+                Pagamento
+              </h2>
+
+              <div className="mt-5 space-y-4">
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-slate-700">
+                    Forma de pagamento
+                  </label>
+                  <select
+                    name="forma_pagamento"
+                    value={form.forma_pagamento}
+                    onChange={handleChange}
+                    className="w-full rounded-2xl border border-slate-300 px-4 py-3 outline-none focus:border-emerald-500"
+                  >
+                    {FORMAS_PAGAMENTO.map((forma) => (
+                      <option key={forma.value} value={forma.value}>
+                        {forma.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-slate-700">
+                    Observações
+                  </label>
+                  <textarea
+                    name="observacoes"
+                    value={form.observacoes}
+                    onChange={handleChange}
+                    rows={4}
+                    className="w-full rounded-2xl border border-slate-300 px-4 py-3 outline-none focus:border-emerald-500"
+                    placeholder="Observações"
+                  />
+                </div>
+
+                <div className="rounded-2xl bg-slate-50 px-4 py-4">
+                  <p className="text-sm text-slate-500">Total da locação</p>
+                  <p className="text-2xl font-bold text-slate-800">
+                    {formatarMoeda(totalLocacao)}
+                  </p>
+                </div>
+
+                <div className="rounded-2xl bg-slate-50 px-4 py-4">
+                  <p className="text-sm text-slate-500">
+                    Metade do valor total (50%)
+                  </p>
+                  <p className="text-2xl font-bold text-slate-800">
+                    {formatarMoeda(metadeTotal)}
+                  </p>
+                </div>
+
+                <div className="flex gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setEtapaAtual(2)}
+                    className="rounded-2xl border border-slate-300 px-4 py-3 font-semibold text-slate-700 hover:bg-slate-50"
+                  >
+                    Voltar
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={confirmarPedido}
+                    disabled={salvando}
+                    className="flex-1 rounded-2xl bg-emerald-500 px-4 py-3 font-semibold text-white hover:bg-emerald-600 disabled:opacity-60"
+                  >
+                    {salvando ? "Enviando..." : "Confirmar pedido"}
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="rounded-3xl bg-white p-5 shadow-sm sm:p-6">
+              <h2 className="text-xl font-semibold text-slate-800">
+                Resumo final
+              </h2>
+
+              <div className="mt-4 space-y-3 text-sm text-slate-600">
+                <p>Cliente: {form.nome || "-"}</p>
+                <p>Telefone: {form.telefone || "-"}</p>
+                <p>Retirada: {form.data_retirada || "-"}</p>
+                <p>Devolução: {form.data_devolucao || "-"}</p>
+                <p>Diárias: {quantidadeDias}</p>
+                <p className="text-lg font-bold text-slate-800">
+                  Total: {formatarMoeda(totalLocacao)}
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {etapaAtual === 4 && (
+          <div className="rounded-3xl bg-white p-6 text-center shadow-sm">
+            <h2 className="text-2xl font-bold text-slate-800">
+              Pedido enviado com sucesso
+            </h2>
+            <p className="mt-3 text-slate-600">
+              Recebemos sua solicitação. Em breve entraremos em contato para
+              confirmar os detalhes da locação.
+            </p>
+
+            <div className="mt-6 flex justify-center">
+              <button
+                type="button"
+                onClick={reiniciarFluxo}
+                className="rounded-2xl bg-slate-900 px-6 py-3 font-semibold text-white hover:bg-slate-800"
+              >
+                Fazer novo pedido
+              </button>
+            </div>
+          </div>
+        )}
+      </section>
+
+      {modalProdutoAberto && produtoSelecionado && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-3xl bg-white p-5 shadow-2xl sm:p-6">
+            <div className="flex items-start justify-between gap-3">
+              <h3 className="text-xl font-bold text-slate-800">
+                {produtoSelecionado.nome}
+              </h3>
+
+              <button
+                type="button"
+                onClick={fecharModalProduto}
+                className="rounded-xl bg-slate-100 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-200"
+              >
+                Fechar
+              </button>
+            </div>
+
+            {erroModalProduto && (
+              <div className="mt-4 rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-600">
+                {erroModalProduto}
+              </div>
+            )}
+
+            <div className="mt-4 flex h-40 items-center justify-center rounded-xl bg-slate-100 p-2">
+              {produtoSelecionado.imagem_url ? (
+                <img
+                  src={produtoSelecionado.imagem_url}
+                  alt={produtoSelecionado.nome}
+                  className="h-full w-full object-contain"
+                />
+              ) : (
+                <span className="text-sm text-slate-500">Sem imagem</span>
+              )}
+            </div>
+
+            <p className="mt-4 text-sm text-slate-500">
+              {produtoSelecionado.descricao || "Sem descrição"}
+            </p>
+
+            <p className="mt-3 text-lg font-bold text-slate-800">
+              {formatarMoeda(produtoSelecionado.valor_diaria)} / diária
+            </p>
+
+            <div className="mt-4 space-y-4">
+              <div>
+                <label className="mb-1 block text-sm font-medium text-slate-700">
+                  Quantidade
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  value={quantidadeSelecionada}
+                  onChange={(e) => setQuantidadeSelecionada(e.target.value)}
+                  className="w-full rounded-2xl border border-slate-300 px-4 py-3 outline-none focus:border-emerald-500"
+                />
+              </div>
+
+              {produtoSelecionado.usa_tamanho && (
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-slate-700">
+                    Tamanho
+                  </label>
+                  <input
+                    type="text"
+                    value={tamanhoSelecionado}
+                    onChange={(e) => setTamanhoSelecionado(e.target.value)}
+                    placeholder="Ex: P, M, G, GG"
+                    className="w-full rounded-2xl border border-slate-300 px-4 py-3 outline-none focus:border-emerald-500"
+                  />
+                </div>
+              )}
+
+              {produtoSelecionado.usa_numeracao && (
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-slate-700">
+                    Numeração
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={numeracaoSelecionada}
+                    onChange={(e) => setNumeracaoSelecionada(e.target.value)}
+                    placeholder="Ex: 38, 39, 40"
+                    className="w-full rounded-2xl border border-slate-300 px-4 py-3 outline-none focus:border-emerald-500"
+                  />
+                </div>
+              )}
+
+              <button
+                type="button"
+                onClick={adicionarAoCarrinho}
+                className="w-full rounded-2xl bg-emerald-500 px-4 py-3 font-semibold text-white hover:bg-emerald-600"
+              >
+                Adicionar ao carrinho
+              </button>
             </div>
           </div>
         </div>
