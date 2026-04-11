@@ -109,6 +109,12 @@ export default function SolicitarLocacao() {
     }, 0);
   }, [itens, quantidadeDias]);
 
+  const totalReferenciaDiaria = useMemo(() => {
+    return itens.reduce((acc, item) => {
+      return acc + Number(item.valor_diaria || 0) * Number(item.quantidade || 0);
+    }, 0);
+  }, [itens]);
+
   const metadeTotal = useMemo(() => totalLocacao / 2, [totalLocacao]);
 
   const categorias = useMemo(() => {
@@ -227,8 +233,22 @@ export default function SolicitarLocacao() {
   }
 
   function abrirModalProduto(produto) {
+    const temVariacao = produto.usa_tamanho || produto.usa_numeracao;
+
+    let quantidadeInicial = "1";
+
+    if (!temVariacao) {
+      const itemExistente = itens.find(
+        (item) => String(item.equipamento_id) === String(produto.id)
+      );
+
+      if (itemExistente) {
+        quantidadeInicial = String(itemExistente.quantidade || 1);
+      }
+    }
+
     setProdutoSelecionado(produto);
-    setQuantidadeSelecionada("1");
+    setQuantidadeSelecionada(quantidadeInicial);
     setTamanhoSelecionado("");
     setNumeracaoSelecionada("");
     setErroModalProduto("");
@@ -734,13 +754,27 @@ export default function SolicitarLocacao() {
               )}
 
               <div className="mt-5 rounded-2xl bg-slate-50 px-4 py-4">
-                <p className="text-sm text-slate-500">Total parcial</p>
-                <p className="text-2xl font-bold text-slate-800">
-                  {formatarMoeda(totalLocacao)}
-                </p>
-                <p className="mt-1 text-sm text-slate-500">
-                  O total final depende das datas escolhidas.
-                </p>
+                {quantidadeDias > 0 ? (
+                  <>
+                    <p className="text-sm text-slate-500">Total da locação</p>
+                    <p className="text-2xl font-bold text-slate-800">
+                      {formatarMoeda(totalLocacao)}
+                    </p>
+                    <p className="mt-1 text-sm text-slate-500">
+                      Cálculo com {quantidadeDias} diária(s).
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-sm text-slate-500">Valor de referência</p>
+                    <p className="text-2xl font-bold text-slate-800">
+                      {formatarMoeda(totalReferenciaDiaria)}
+                    </p>
+                    <p className="mt-1 text-sm text-slate-500">
+                      Valor referente a 1 diária. O total final será calculado após informar as datas.
+                    </p>
+                  </>
+                )}
               </div>
 
               <button
@@ -1016,6 +1050,17 @@ export default function SolicitarLocacao() {
             <p className="mt-3 text-lg font-bold text-slate-800">
               {formatarMoeda(produtoSelecionado.valor_diaria)} / diária
             </p>
+
+            {!produtoSelecionado.usa_tamanho &&
+              !produtoSelecionado.usa_numeracao &&
+              itens.some(
+                (item) =>
+                  String(item.equipamento_id) === String(produtoSelecionado.id)
+              ) && (
+                <p className="mt-2 text-sm text-amber-600">
+                  Este item já está no carrinho. A nova quantidade será somada à existente.
+                </p>
+              )}
 
             <div className="mt-4 space-y-4">
               <div>
