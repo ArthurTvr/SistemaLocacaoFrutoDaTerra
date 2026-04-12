@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useMemo } from "react";
 import { supabase } from "../lib/supabase";
 import { withTimeout } from "../lib/withTimeout";
 
@@ -40,7 +40,22 @@ export default function EquipamentosPage() {
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState("");
   const [mensagem, setMensagem] = useState("");
+  const [filtroCategoria, setFiltroCategoria] = useState("");
 
+  const categorias = useMemo(() => {
+    return [
+      ...new Set(equipamentos.map((item) => item.categoria).filter(Boolean)),
+    ].sort((a, b) => a.localeCompare(b));
+  }, [equipamentos]);
+
+  const equipamentosFiltrados = useMemo(() => {
+    if (!filtroCategoria) return equipamentos;
+
+    return equipamentos.filter(
+      (equipamento) => equipamento.categoria === filtroCategoria,
+    );
+  }, [equipamentos, filtroCategoria]);
+  
   useEffect(() => {
     ativoRef.current = true;
     buscarEquipamentos();
@@ -439,27 +454,41 @@ export default function EquipamentosPage() {
             <h2 className="text-xl font-semibold text-slate-800">
               Lista de equipamentos
             </h2>
+            <div className="flex flex-col gap-3 sm:flex-row">
+              <select
+                value={filtroCategoria}
+                onChange={(e) => setFiltroCategoria(e.target.value)}
+                className="rounded-xl border border-slate-300 px-4 py-2 text-sm text-slate-700 outline-none focus:border-emerald-500"
+              >
+                <option value="">Todas as categorias</option>
+                {categorias.map((categoria) => (
+                  <option key={categoria} value={categoria}>
+                    {categoria}
+                  </option>
+                ))}
+              </select>
 
-            <button
-              onClick={buscarEquipamentos}
-              disabled={carregando}
-              className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-60"
-            >
-              {carregando ? "Atualizando..." : "Atualizar"}
-            </button>
+              <button
+                onClick={buscarEquipamentos}
+                disabled={carregando}
+                className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+              >
+                {carregando ? "Atualizando..." : "Atualizar"}
+              </button>
+            </div>
           </div>
 
           {carregando ? (
             <div className="mt-6 text-slate-600">
               Carregando equipamentos...
             </div>
-          ) : equipamentos.length === 0 ? (
+          ) : equipamentosFiltrados.length === 0 ? (
             <div className="mt-6 rounded-2xl border border-dashed border-slate-300 p-6 text-slate-500">
               Nenhum equipamento cadastrado.
             </div>
           ) : (
             <div className="mt-6 flex-1 space-y-4 overflow-y-auto pr-2">
-              {equipamentos.map((equipamento) => (
+              {equipamentosFiltrados.map((equipamento) => (
                 <div
                   key={equipamento.id}
                   className="rounded-2xl border border-slate-200 p-4"
