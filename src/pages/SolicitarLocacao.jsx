@@ -13,6 +13,11 @@ const FORM_INICIAL = {
   forma_pagamento: "pix",
   observacoes: "",
 };
+function formatarData(data) {
+  if (!data) return "-";
+
+  return new Date(`${data}T00:00:00`).toLocaleDateString("pt-BR");
+}
 
 function traduzirErro(err) {
   if (!err) return "Ocorreu um erro inesperado.";
@@ -1030,8 +1035,8 @@ export default function SolicitarLocacao() {
               <div className="mt-4 space-y-3 text-sm text-slate-600">
                 <p>Cliente: {form.nome || "-"}</p>
                 <p>Telefone: {form.telefone || "-"}</p>
-                <p>Retirada: {form.data_retirada || "-"}</p>
-                <p>Devolução: {form.data_devolucao || "-"}</p>
+                <p>Retirada: {formatarData(form.data_retirada)}</p>
+                <p>Devolução: {formatarData(form.data_devolucao)}</p>
                 <p>Diárias: {quantidadeDias}</p>
                 <p className="text-lg font-bold text-slate-800">
                   Total: {formatarMoeda(totalLocacao)}
