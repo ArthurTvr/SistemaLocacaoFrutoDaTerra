@@ -38,7 +38,7 @@ function formatarDataHora(data) {
 function formatarFormaPagamento(valor) {
   const mapa = {
     pix: "Pix",
-    cartao_credito: "Cartão de crédito"
+    cartao_credito: "Cartão de crédito",
   };
 
   return mapa[valor] || valor || "-";
@@ -100,7 +100,8 @@ export default function Locacoes() {
       const { data, error } = await withTimeout(
         supabase
           .from("locacoes")
-          .select(`
+          .select(
+            `
             id,
             data_retirada,
             data_devolucao,
@@ -130,10 +131,11 @@ export default function Locacoes() {
                 categoria
               )
             )
-          `)
+          `,
+          )
           .order("data_retirada", { ascending: false })
           .order("created_at", { ascending: false }),
-        30000
+        30000,
       );
 
       if (error) throw error;
@@ -163,12 +165,13 @@ export default function Locacoes() {
     try {
       const payload = {
         status: novoStatus,
-        entregue_em: novoStatus === "devolvido" ? new Date().toISOString() : null,
+        entregue_em:
+          novoStatus === "devolvido" ? new Date().toISOString() : null,
       };
 
       const { error } = await withTimeout(
         supabase.from("locacoes").update(payload).eq("id", locacaoId),
-        30000
+        30000,
       );
 
       if (error) throw error;
@@ -202,75 +205,164 @@ export default function Locacoes() {
           .join(" | ");
 
         return `
-          <tr>
-            <td style="padding:8px;border:1px solid #ccc;">${item.equipamento?.nome || "-"}</td>
-            <td style="padding:8px;border:1px solid #ccc;text-align:center;">${item.quantidade}</td>
-            <td style="padding:8px;border:1px solid #ccc;text-align:center;">${item.quantidade_dias}</td>
-            <td style="padding:8px;border:1px solid #ccc;text-align:right;">${formatarMoeda(item.valor_diaria)}</td>
-            <td style="padding:8px;border:1px solid #ccc;text-align:right;">${formatarMoeda(item.subtotal)}</td>
-          </tr>
-          ${
-            detalhesExtras
-              ? `
-                <tr>
-                  <td colspan="5" style="padding:8px;border:1px solid #ccc;color:#555;">
-                    ${detalhesExtras}
-                  </td>
-                </tr>
-              `
-              : ""
-          }
-        `;
+        <div class="item">
+          <div class="linha forte">${item.equipamento?.nome || "-"}</div>
+          <div class="linha">
+            Qtd: ${item.quantidade} | Dias: ${item.quantidade_dias}
+          </div>
+          <div class="linha">
+            Diária: ${formatarMoeda(item.valor_diaria)}
+          </div>
+          <div class="linha forte">
+            Subtotal: ${formatarMoeda(item.subtotal)}
+          </div>
+          ${detalhesExtras ? `<div class="linha pequeno">${detalhesExtras}</div>` : ""}
+        </div>
+      `;
       })
       .join("");
 
     const html = `
-      <html>
-        <head>
-          <title>Locação</title>
-        </head>
-        <body style="font-family: Arial, sans-serif; padding: 24px;">
-          <h1>Pedido de Locação</h1>
-          <p><strong>Cliente:</strong> ${locacao.cliente?.nome || "-"}</p>
-          <p><strong>Telefone:</strong> ${locacao.cliente?.telefone || "-"}</p>
-          <p><strong>Retirada:</strong> ${formatarData(locacao.data_retirada)}</p>
-          <p><strong>Devolução:</strong> ${formatarData(locacao.data_devolucao)}</p>
-          <p><strong>Forma de pagamento:</strong> ${formatarFormaPagamento(locacao.forma_pagamento)}</p>
-          <p><strong>Status:</strong> ${locacao.status}</p>
+    <html>
+      <head>
+        <title>Pedido de Locação</title>
+        <style>
+          @page {
+            size: 80mm auto;
+            margin: 4mm;
+          }
 
-          <table style="width:100%; border-collapse: collapse; margin-top: 24px;">
-            <thead>
-              <tr>
-                <th style="padding:8px;border:1px solid #ccc;text-align:left;">Equipamento</th>
-                <th style="padding:8px;border:1px solid #ccc;">Qtd</th>
-                <th style="padding:8px;border:1px solid #ccc;">Dias</th>
-                <th style="padding:8px;border:1px solid #ccc;">Diária</th>
-                <th style="padding:8px;border:1px solid #ccc;">Subtotal</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${itensHtml}
-            </tbody>
-          </table>
+          body {
+            font-family: Arial, sans-serif;
+            width: 72mm;
+            margin: 0 auto;
+            color: #000;
+            font-size: 12px;
+            line-height: 1.35;
+          }
 
-          <h2 style="margin-top: 24px;">Total: ${formatarMoeda(locacao.valor_total)}</h2>
+          .cupom {
+            width: 100%;
+          }
+
+          .centro {
+            text-align: center;
+          }
+
+          .titulo {
+            font-size: 16px;
+            font-weight: 700;
+            margin-bottom: 6px;
+          }
+
+          .subtitulo {
+            font-size: 12px;
+            margin-bottom: 10px;
+          }
+
+          .bloco {
+            margin: 10px 0;
+          }
+
+          .linha {
+            margin: 2px 0;
+            word-break: break-word;
+          }
+
+          .forte {
+            font-weight: 700;
+          }
+
+          .pequeno {
+            font-size: 11px;
+          }
+
+          .divisor {
+            border-top: 1px dashed #000;
+            margin: 10px 0;
+          }
+
+          .item {
+            margin-bottom: 10px;
+          }
+
+          .total {
+            font-size: 15px;
+            font-weight: 700;
+            text-align: center;
+            margin-top: 10px;
+          }
+
+          .obs {
+            white-space: pre-wrap;
+            word-break: break-word;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="cupom">
+          <div class="centro">
+            <div class="titulo">FRUTO DA TERRA</div>
+            <div class="subtitulo">Pedido de Locação</div>
+          </div>
+
+          <div class="divisor"></div>
+
+          <div class="bloco">
+            <div class="linha"><span class="forte">Cliente:</span> ${locacao.cliente?.nome || "-"}</div>
+            <div class="linha"><span class="forte">Telefone:</span> ${locacao.cliente?.telefone || "-"}</div>
+            <div class="linha"><span class="forte">Retirada:</span> ${formatarData(locacao.data_retirada)}</div>
+            <div class="linha"><span class="forte">Devolução:</span> ${formatarData(locacao.data_devolucao)}</div>
+            <div class="linha"><span class="forte">Pagamento:</span> ${formatarFormaPagamento(locacao.forma_pagamento)}</div>
+            <div class="linha"><span class="forte">Status:</span> ${locacao.status}</div>
+          </div>
+
+          <div class="divisor"></div>
+
+          <div class="bloco">
+            <div class="linha forte">ITENS</div>
+            ${itensHtml || '<div class="linha">Nenhum item.</div>'}
+          </div>
+
+          <div class="divisor"></div>
+
+          <div class="total">
+            TOTAL: ${formatarMoeda(locacao.valor_total)}
+          </div>
 
           ${
             locacao.observacoes
-              ? `<p><strong>Observações:</strong> ${locacao.observacoes}</p>`
+              ? `
+                <div class="divisor"></div>
+                <div class="bloco">
+                  <div class="linha forte">OBSERVAÇÕES</div>
+                  <div class="linha obs pequeno">${locacao.observacoes}</div>
+                </div>
+              `
               : ""
           }
-        </body>
-      </html>
-    `;
 
-    const novaJanela = window.open("", "_blank");
+          <div class="divisor"></div>
+
+          <div class="centro pequeno">
+            <div>Impresso em ${new Date().toLocaleString("pt-BR")}</div>
+          </div>
+        </div>
+
+        <script>
+          window.onload = function () {
+            window.print();
+          };
+        </script>
+      </body>
+    </html>
+  `;
+
+    const novaJanela = window.open("", "_blank", "width=420,height=800");
     if (!novaJanela) return;
 
     novaJanela.document.write(html);
     novaJanela.document.close();
-    novaJanela.focus();
-    novaJanela.print();
   }
 
   const locacoesFiltradas = useMemo(() => {
@@ -333,7 +425,9 @@ export default function Locacoes() {
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <div className="rounded-2xl bg-white p-5 shadow-sm">
           <p className="text-sm text-slate-500">Total de locações</p>
-          <h2 className="mt-2 text-2xl font-bold text-slate-800">{resumo.total}</h2>
+          <h2 className="mt-2 text-2xl font-bold text-slate-800">
+            {resumo.total}
+          </h2>
         </div>
 
         <div className="rounded-2xl bg-white p-5 shadow-sm">
@@ -431,7 +525,8 @@ export default function Locacoes() {
                         </p>
 
                         <p className="text-sm text-slate-600">
-                          Pagamento: {formatarFormaPagamento(locacao.forma_pagamento)}
+                          Pagamento:{" "}
+                          {formatarFormaPagamento(locacao.forma_pagamento)}
                         </p>
 
                         <p className="text-sm text-slate-600">
@@ -440,7 +535,7 @@ export default function Locacoes() {
 
                         <div
                           className={`mt-2 inline-flex rounded-full px-3 py-1 text-xs font-semibold ${classeStatus(
-                            locacao.status
+                            locacao.status,
                           )}`}
                         >
                           {locacao.status}
@@ -460,7 +555,9 @@ export default function Locacoes() {
                           {STATUS_OPTIONS.map((status) => (
                             <button
                               key={status}
-                              onClick={() => atualizarStatus(locacao.id, status)}
+                              onClick={() =>
+                                atualizarStatus(locacao.id, status)
+                              }
                               disabled={
                                 atualizandoStatusId === locacao.id ||
                                 locacao.status === status
@@ -525,19 +622,27 @@ export default function Locacoes() {
                   {locacaoSelecionada.cliente?.nome || "-"}
                 </p>
                 <p>
-                  <span className="font-semibold text-slate-800">Telefone:</span>{" "}
+                  <span className="font-semibold text-slate-800">
+                    Telefone:
+                  </span>{" "}
                   {locacaoSelecionada.cliente?.telefone || "-"}
                 </p>
                 <p>
-                  <span className="font-semibold text-slate-800">Retirada:</span>{" "}
+                  <span className="font-semibold text-slate-800">
+                    Retirada:
+                  </span>{" "}
                   {formatarData(locacaoSelecionada.data_retirada)}
                 </p>
                 <p>
-                  <span className="font-semibold text-slate-800">Devolução:</span>{" "}
+                  <span className="font-semibold text-slate-800">
+                    Devolução:
+                  </span>{" "}
                   {formatarData(locacaoSelecionada.data_devolucao)}
                 </p>
                 <p>
-                  <span className="font-semibold text-slate-800">Pagamento:</span>{" "}
+                  <span className="font-semibold text-slate-800">
+                    Pagamento:
+                  </span>{" "}
                   {formatarFormaPagamento(locacaoSelecionada.forma_pagamento)}
                 </p>
                 <p>
@@ -545,7 +650,9 @@ export default function Locacoes() {
                   {locacaoSelecionada.status}
                 </p>
                 <p>
-                  <span className="font-semibold text-slate-800">Criado em:</span>{" "}
+                  <span className="font-semibold text-slate-800">
+                    Criado em:
+                  </span>{" "}
                   {formatarDataHora(locacaoSelecionada.created_at)}
                 </p>
                 <p>

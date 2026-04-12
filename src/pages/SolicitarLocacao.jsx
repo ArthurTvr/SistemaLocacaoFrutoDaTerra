@@ -114,6 +114,7 @@ export default function SolicitarLocacao() {
 
   const [pixCopiado, setPixCopiado] = useState(false);
 
+
   const quantidadeDias = useMemo(() => {
     return calcularQuantidadeDias(form.data_retirada, form.data_devolucao);
   }, [form.data_retirada, form.data_devolucao]);
