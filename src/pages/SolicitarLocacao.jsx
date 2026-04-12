@@ -3,6 +3,7 @@ import { supabase } from "../lib/supabase";
 import { withTimeout } from "../lib/withTimeout";
 import logo from "../assets/images/logo.png";
 
+const PIX_KEY = "61.282.940/0001-05";
 
 const FORM_INICIAL = {
   nome: "",
@@ -12,11 +13,6 @@ const FORM_INICIAL = {
   forma_pagamento: "pix",
   observacoes: "",
 };
-
-const FORMAS_PAGAMENTO = [
-  { value: "pix", label: "Pix" },
-  { value: "cartao_credito", label: "Cartão de crédito" },
-];
 
 function traduzirErro(err) {
   if (!err) return "Ocorreu um erro inesperado.";
@@ -60,6 +56,24 @@ function calcularQuantidadeDias(dataRetirada, dataDevolucao) {
   return diffDias > 0 ? diffDias : 0;
 }
 
+function calcularValorComAcrescimo(valorDiaria, quantidadeDias) {
+  const valorBase = Number(valorDiaria || 0);
+  const dias = Number(quantidadeDias || 0);
+
+  if (dias <= 0) return 0;
+  if (dias === 1) return valorBase;
+
+  return valorBase * (1 + (dias - 1) * 0.1);
+}
+
+function calcularSubtotalItem(valorDiaria, quantidade, quantidadeDias) {
+  const valorPorPeriodo = calcularValorComAcrescimo(
+    valorDiaria,
+    quantidadeDias,
+  );
+  return valorPorPeriodo * Number(quantidade || 0);
+}
+
 function agruparPorCategoria(equipamentos) {
   return equipamentos.reduce((acc, equipamento) => {
     const categoria = equipamento.categoria || "Outros";
@@ -93,6 +107,8 @@ export default function SolicitarLocacao() {
   const [tamanhoSelecionado, setTamanhoSelecionado] = useState("");
   const [numeracaoSelecionada, setNumeracaoSelecionada] = useState("");
 
+  const [pixCopiado, setPixCopiado] = useState(false);
+
   const quantidadeDias = useMemo(() => {
     return calcularQuantidadeDias(form.data_retirada, form.data_devolucao);
   }, [form.data_retirada, form.data_devolucao]);
@@ -103,9 +119,7 @@ export default function SolicitarLocacao() {
     return itens.reduce((acc, item) => {
       return (
         acc +
-        Number(item.valor_diaria || 0) *
-          Number(item.quantidade || 0) *
-          quantidadeDias
+        calcularSubtotalItem(item.valor_diaria, item.quantidade, quantidadeDias)
       );
     }, 0);
   }, [itens, quantidadeDias]);
@@ -190,7 +204,19 @@ export default function SolicitarLocacao() {
     setMensagem("");
     irParaTopo();
   }
+  async function copiarChavePix() {
+    try {
+      await navigator.clipboard.writeText(PIX_KEY);
+      setPixCopiado(true);
 
+      setTimeout(() => {
+        setPixCopiado(false);
+      }, 2000);
+    } catch (err) {
+      console.error("Erro ao copiar chave Pix:", err);
+      mostrarErro("Não foi possível copiar a chave Pix.");
+    }
+  }
   async function buscarEquipamentos() {
     if (ativoRef.current) {
       setCarregando(true);
@@ -267,86 +293,92 @@ export default function SolicitarLocacao() {
     setErroModalProduto("");
   }
 
-function adicionarAoCarrinho() {
-  setErro("");
-  setMensagem("");
-  setErroModalProduto("");
+  function adicionarAoCarrinho() {
+    setErro("");
+    setMensagem("");
+    setErroModalProduto("");
 
-  if (!produtoSelecionado) {
-    setErroModalProduto("Selecione um produto.");
-    return;
-  }
+    if (!produtoSelecionado) {
+      setErroModalProduto("Selecione um produto.");
+      return;
+    }
 
-  const quantidade = Number(String(quantidadeSelecionada).replace(",", ".").trim());
+    const quantidade = Number(
+      String(quantidadeSelecionada).replace(",", ".").trim(),
+    );
 
-  if (Number.isNaN(quantidade) || quantidade <= 0 || !Number.isInteger(quantidade)) {
-    setErroModalProduto("Informe uma quantidade válida.");
-    return;
-  }
+    if (
+      Number.isNaN(quantidade) ||
+      quantidade <= 0 ||
+      !Number.isInteger(quantidade)
+    ) {
+      setErroModalProduto("Informe uma quantidade válida.");
+      return;
+    }
 
-  if (produtoSelecionado.usa_tamanho && !tamanhoSelecionado.trim()) {
-    setErroModalProduto("Informe o tamanho.");
-    return;
-  }
+    if (produtoSelecionado.usa_tamanho && !tamanhoSelecionado.trim()) {
+      setErroModalProduto("Informe o tamanho.");
+      return;
+    }
 
-  if (produtoSelecionado.usa_numeracao && !numeracaoSelecionada.trim()) {
-    setErroModalProduto("Informe a numeração.");
-    return;
-  }
+    if (produtoSelecionado.usa_numeracao && !numeracaoSelecionada.trim()) {
+      setErroModalProduto("Informe a numeração.");
+      return;
+    }
 
-  const chaveTamanho = produtoSelecionado.usa_tamanho
-    ? tamanhoSelecionado.trim()
-    : null;
+    const chaveTamanho = produtoSelecionado.usa_tamanho
+      ? tamanhoSelecionado.trim()
+      : null;
 
-  const chaveNumeracao = produtoSelecionado.usa_numeracao
-    ? numeracaoSelecionada.trim()
-    : null;
+    const chaveNumeracao = produtoSelecionado.usa_numeracao
+      ? numeracaoSelecionada.trim()
+      : null;
 
-  setItens((prev) => {
-    const itemExistente = prev.find((item) => {
-      return (
-        String(item.equipamento_id) === String(produtoSelecionado.id) &&
-        (item.tamanho || null) === chaveTamanho &&
-        (item.numeracao || null) === chaveNumeracao
-      );
-    });
-
-    if (itemExistente) {
-      return prev.map((item) => {
-        if (
+    setItens((prev) => {
+      const itemExistente = prev.find((item) => {
+        return (
           String(item.equipamento_id) === String(produtoSelecionado.id) &&
           (item.tamanho || null) === chaveTamanho &&
           (item.numeracao || null) === chaveNumeracao
-        ) {
-          return {
-            ...item,
-            quantidade,
-          };
-        }
-
-        return item;
+        );
       });
-    }
 
-    return [
-      ...prev,
-      {
-        uid: crypto.randomUUID(),
-        equipamento_id: produtoSelecionado.id,
-        equipamento_nome: produtoSelecionado.nome,
-        imagem_url: produtoSelecionado.imagem_url || "",
-        categoria: produtoSelecionado.categoria || "Outros",
-        quantidade,
-        valor_diaria: Number(produtoSelecionado.valor_diaria),
-        tamanho: chaveTamanho,
-        numeracao: chaveNumeracao,
-      },
-    ];
-  });
+      if (itemExistente) {
+        return prev.map((item) => {
+          if (
+            String(item.equipamento_id) === String(produtoSelecionado.id) &&
+            (item.tamanho || null) === chaveTamanho &&
+            (item.numeracao || null) === chaveNumeracao
+          ) {
+            return {
+              ...item,
+              quantidade,
+            };
+          }
 
-  setMensagem("Produto adicionado ao carrinho.");
-  fecharModalProduto();
-}
+          return item;
+        });
+      }
+
+      return [
+        ...prev,
+        {
+          uid: crypto.randomUUID(),
+          equipamento_id: produtoSelecionado.id,
+          equipamento_nome: produtoSelecionado.nome,
+          imagem_url: produtoSelecionado.imagem_url || "",
+          categoria: produtoSelecionado.categoria || "Outros",
+          quantidade,
+          valor_diaria: Number(produtoSelecionado.valor_diaria),
+          tamanho: chaveTamanho,
+          numeracao: chaveNumeracao,
+        },
+      ];
+    });
+
+    setMensagem("Produto adicionado ao carrinho.");
+    fecharModalProduto();
+  }
 
   function removerItem(uid) {
     setItens((prev) => prev.filter((item) => item.uid !== uid));
@@ -434,11 +466,6 @@ function adicionarAoCarrinho() {
   }
 
   async function confirmarPedido() {
-    if (!form.forma_pagamento) {
-      mostrarErro("Selecione a forma de pagamento.");
-      return;
-    }
-
     setSalvando(true);
     setErro("");
     setMensagem("");
@@ -455,7 +482,7 @@ function adicionarAoCarrinho() {
             cliente_id: cliente.id,
             data_retirada: form.data_retirada,
             data_devolucao: form.data_devolucao,
-            forma_pagamento: form.forma_pagamento,
+            forma_pagamento: "pix",
             observacoes: form.observacoes.trim() || null,
             valor_total: totalLocacao,
             status: "solicitado",
@@ -475,8 +502,11 @@ function adicionarAoCarrinho() {
         quantidade: item.quantidade,
         valor_diaria: item.valor_diaria,
         quantidade_dias: quantidadeDias,
-        subtotal:
-          Number(item.valor_diaria) * Number(item.quantidade) * quantidadeDias,
+        subtotal: calcularSubtotalItem(
+          item.valor_diaria,
+          item.quantidade,
+          quantidadeDias,
+        ),
         tamanho: item.tamanho,
         numeracao: item.numeracao,
       }));
@@ -773,7 +803,8 @@ function adicionarAoCarrinho() {
                       {formatarMoeda(totalLocacao)}
                     </p>
                     <p className="mt-1 text-sm text-slate-500">
-                      Cálculo com {quantidadeDias} diária(s).
+                      Cálculo com {quantidadeDias} diária(s), com acréscimo de
+                      10% por dia extra.
                     </p>
                   </>
                 ) : (
@@ -912,22 +943,48 @@ function adicionarAoCarrinho() {
               </h2>
 
               <div className="mt-5 space-y-4">
-                <div>
-                  <label className="mb-1 block text-sm font-medium text-slate-700">
+                <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-4">
+                  <p className="text-sm font-medium text-emerald-700">
                     Forma de pagamento
-                  </label>
-                  <select
-                    name="forma_pagamento"
-                    value={form.forma_pagamento}
-                    onChange={handleChange}
-                    className="w-full rounded-2xl border border-slate-300 px-4 py-3 outline-none focus:border-emerald-500"
+                  </p>
+                  <p className="mt-1 text-lg font-bold text-emerald-900">Pix</p>
+                </div>
+
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
+                  <p className="text-sm text-slate-500">Chave Pix</p>
+                  <p className="mt-1 break-all text-lg font-bold text-slate-800">
+                    {PIX_KEY}
+                  </p>
+
+                  <button
+                    type="button"
+                    onClick={copiarChavePix}
+                    className="mt-3 rounded-2xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white hover:bg-slate-800"
                   >
-                    {FORMAS_PAGAMENTO.map((forma) => (
-                      <option key={forma.value} value={forma.value}>
-                        {forma.label}
-                      </option>
-                    ))}
-                  </select>
+                    {pixCopiado ? "Chave copiada!" : "Copiar chave Pix"}
+                  </button>
+                </div>
+
+                <div className="rounded-2xl bg-slate-50 px-4 py-4">
+                  <p className="text-sm text-slate-500">Total da locação</p>
+                  <p className="text-2xl font-bold text-slate-800">
+                    {formatarMoeda(totalLocacao)}
+                  </p>
+                </div>
+
+                <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-4">
+                  <p className="text-sm text-amber-700">
+                    Valor de 50% para confirmar a reserva
+                  </p>
+                  <p className="text-2xl font-bold text-amber-900">
+                    {formatarMoeda(metadeTotal)}
+                  </p>
+                </div>
+
+                <div className="rounded-2xl border border-blue-200 bg-blue-50 px-4 py-4 text-sm text-blue-800">
+                  Após o pagamento enviar o comprovante para o número{" "}
+                  <span className="font-bold">(32) 8484-1653</span>, que seu
+                  pedido será confirmado.
                 </div>
 
                 <div>
@@ -942,22 +999,6 @@ function adicionarAoCarrinho() {
                     className="w-full rounded-2xl border border-slate-300 px-4 py-3 outline-none focus:border-emerald-500"
                     placeholder="Observações"
                   />
-                </div>
-
-                <div className="rounded-2xl bg-slate-50 px-4 py-4">
-                  <p className="text-sm text-slate-500">Total da locação</p>
-                  <p className="text-2xl font-bold text-slate-800">
-                    {formatarMoeda(totalLocacao)}
-                  </p>
-                </div>
-
-                <div className="rounded-2xl bg-slate-50 px-4 py-4">
-                  <p className="text-sm text-slate-500">
-                    Metade do valor total (50%)
-                  </p>
-                  <p className="text-2xl font-bold text-slate-800">
-                    {formatarMoeda(metadeTotal)}
-                  </p>
                 </div>
 
                 <div className="flex gap-3">
@@ -995,6 +1036,9 @@ function adicionarAoCarrinho() {
                 <p className="text-lg font-bold text-slate-800">
                   Total: {formatarMoeda(totalLocacao)}
                 </p>
+                <p className="text-lg font-bold text-emerald-700">
+                  Entrada (50%): {formatarMoeda(metadeTotal)}
+                </p>
               </div>
             </div>
           </div>
@@ -1006,8 +1050,8 @@ function adicionarAoCarrinho() {
               Pedido enviado com sucesso
             </h2>
             <p className="mt-3 text-slate-600">
-              Recebemos sua solicitação. Em breve entraremos em contato para
-              confirmar os detalhes da locação.
+              Recebemos sua solicitação. Após o envio do comprovante Pix, seu
+              pedido será confirmado.
             </p>
 
             <div className="mt-6 flex justify-center">

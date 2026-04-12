@@ -37,12 +37,8 @@ function formatarDataHora(data) {
 
 function formatarFormaPagamento(valor) {
   const mapa = {
-    dinheiro: "Dinheiro",
     pix: "Pix",
-    cartao_credito: "Cartão de crédito",
-    cartao_debito: "Cartão de débito",
-    boleto: "Boleto",
-    prazo: "A prazo",
+    cartao_credito: "Cartão de crédito"
   };
 
   return mapa[valor] || valor || "-";
