@@ -13,9 +13,9 @@ const FORM_INICIAL = {
   forma_pagamento: "pix",
   observacoes: "",
 };
+
 function formatarData(data) {
   if (!data) return "-";
-
   return new Date(`${data}T00:00:00`).toLocaleDateString("pt-BR");
 }
 
@@ -91,6 +91,7 @@ function agruparPorCategoria(equipamentos) {
 export default function SolicitarLocacao() {
   const ativoRef = useRef(true);
   const topoRef = useRef(null);
+  const carrinhoRef = useRef(null);
 
   const [equipamentos, setEquipamentos] = useState([]);
   const [itens, setItens] = useState([]);
@@ -113,7 +114,6 @@ export default function SolicitarLocacao() {
   const [numeracaoSelecionada, setNumeracaoSelecionada] = useState("");
 
   const [pixCopiado, setPixCopiado] = useState(false);
-
 
   const quantidadeDias = useMemo(() => {
     return calcularQuantidadeDias(form.data_retirada, form.data_devolucao);
@@ -205,11 +205,19 @@ export default function SolicitarLocacao() {
     });
   }
 
+  function irParaCarrinho() {
+    carrinhoRef.current?.scrollIntoView({
+      behavior: "smooth",
+      block: "start",
+    });
+  }
+
   function mostrarErro(texto) {
     setErro(texto);
     setMensagem("");
     irParaTopo();
   }
+
   async function copiarChavePix() {
     try {
       await navigator.clipboard.writeText(PIX_KEY);
@@ -223,6 +231,7 @@ export default function SolicitarLocacao() {
       mostrarErro("Não foi possível copiar a chave Pix.");
     }
   }
+
   async function buscarEquipamentos() {
     if (ativoRef.current) {
       setCarregando(true);
@@ -735,7 +744,10 @@ export default function SolicitarLocacao() {
               )}
             </div>
 
-            <div className="rounded-3xl bg-white p-5 shadow-sm sm:p-6">
+            <div
+              ref={carrinhoRef}
+              className="rounded-3xl bg-white p-5 shadow-sm sm:p-6"
+            >
               <div className="flex items-center justify-between gap-3">
                 <h2 className="text-xl font-semibold text-slate-800">
                   Seu carrinho
@@ -1072,6 +1084,17 @@ export default function SolicitarLocacao() {
           </div>
         )}
       </section>
+
+      {etapaAtual === 1 && (
+        <button
+          type="button"
+          onClick={irParaCarrinho}
+          className="fixed bottom-4 right-4 z-40 flex items-center gap-2 rounded-full bg-slate-800 px-3 py-2 text-sm font-semibold text-white shadow-lg hover:bg-emerald-600 md:hidden"
+        >
+          <span className="text-base">🛒</span>
+          <span>{itens.length}</span>
+        </button>
+      )}
 
       {modalProdutoAberto && produtoSelecionado && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
