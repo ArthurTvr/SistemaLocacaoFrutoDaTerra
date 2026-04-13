@@ -1,16 +1,44 @@
-# React + Vite
+# Sistema de Locação - Fruto da Terra
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Sistema web para gerenciamento de locação de equipamentos, com área administrativa e página pública para solicitação de aluguel.
 
-Currently, two official plugins are available:
+## Funcionalidades
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+### Área pública
+- Visualização do catálogo de produtos
+- Filtro por categoria
+- Busca por nome do produto
+- Adição de itens ao carrinho
+- Seleção de tamanho e numeração quando necessário
+- Preenchimento de dados do cliente
+- Escolha de datas de retirada e devolução
+- Cálculo automático do valor da locação
+- Exibição da chave Pix para pagamento
+- Cópia da chave Pix com um clique
+- Envio da solicitação de locação
 
-## React Compiler
+### Área administrativa
+- Cadastro de equipamentos
+- Edição de equipamentos
+- Desativação de equipamentos
+- Controle de locações
+- Visualização dos pedidos realizados
+- Dashboard com indicadores do sistema
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## Tecnologias utilizadas
 
-## Expanding the ESLint configuration
+- React
+- Vite
+- Tailwind CSS
+- Supabase
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+## Estrutura do projeto
+
+```bash
+src/
+  assets/
+    images/
+  components/
+  contexts/
+  lib/
+  pages/
