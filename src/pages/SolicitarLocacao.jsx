@@ -974,6 +974,8 @@ export default function SolicitarLocacao() {
                     {PIX_KEY}
                   </p>
 
+                  <p className="text-sm text-slate-500">Beneficiário: Dalmes Dutra Cardoso Junior</p>
+
                   <button
                     type="button"
                     onClick={copiarChavePix}
@@ -1000,7 +1002,7 @@ export default function SolicitarLocacao() {
                 </div>
 
                 <div className="rounded-2xl border border-blue-200 bg-blue-50 px-4 py-4 text-sm text-blue-800">
-                  Após o pagamento enviar o comprovante para o número{" "}
+                  Após o pagamento dos 50% do valor, favor enviar o comprovante para o número{" "}
                   <span className="font-bold">(32) 8484-1653</span>, que seu
                   pedido será confirmado.
                 </div>
