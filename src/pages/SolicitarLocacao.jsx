@@ -1089,7 +1089,7 @@ export default function SolicitarLocacao() {
         <button
           type="button"
           onClick={irParaCarrinho}
-          className="fixed bottom-4 right-4 z-40 flex items-center gap-2 rounded-full bg-slate-800 px-3 py-2 text-sm font-semibold text-white shadow-lg hover:bg-emerald-600 md:hidden"
+          className="fixed bottom-4 right-4 z-40 flex items-center gap-2 rounded-full bg-radial-[at_30%_20%] from-slate-800 via-slate-700 to-slate-800 px-3 py-2 text-sm font-semibold text-white shadow-lg hover:bg-emerald-600 md:hidden"
         >
           <span className="text-base">🛒</span>
           <span>{itens.length}</span>
