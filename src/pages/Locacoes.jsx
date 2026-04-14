@@ -77,7 +77,8 @@ export default function Locacoes() {
   const primeiraCargaRef = useRef(true);
 
   const [locacoes, setLocacoes] = useState([]);
-  const [carregando, setCarregando] = useState(true);
+  const [carregandoInicial, setCarregandoInicial] = useState(true);
+  const [atualizandoLista, setAtualizandoLista] = useState(false);
   const [erro, setErro] = useState("");
   const [mensagem, setMensagem] = useState("");
   const [filtroStatus, setFiltroStatus] = useState("");
@@ -89,7 +90,7 @@ export default function Locacoes() {
     buscarLocacoes();
 
     const intervalo = setInterval(() => {
-      buscarLocacoes(false);
+      buscarLocacoes(false, true);
     }, 15000);
 
     return () => {
@@ -98,9 +99,16 @@ export default function Locacoes() {
     };
   }, []);
 
-  async function buscarLocacoes(forcarSilencio = false) {
+  async function buscarLocacoes(
+    forcarSilencio = false,
+    ehAtualizacaoSilenciosa = false,
+  ) {
     if (ativoRef.current) {
-      setCarregando(true);
+      if (ehAtualizacaoSilenciosa) {
+        setAtualizandoLista(true);
+      } else {
+        setCarregandoInicial(true);
+      }
       setErro("");
     }
 
@@ -183,11 +191,11 @@ export default function Locacoes() {
 
       if (ativoRef.current) {
         setErro(traduzirErro(err));
-        setLocacoes([]);
       }
     } finally {
       if (ativoRef.current) {
-        setCarregando(false);
+        setCarregandoInicial(false);
+        setAtualizandoLista(false);
       }
     }
   }
@@ -215,7 +223,7 @@ export default function Locacoes() {
         setMensagem(`Locação atualizada para "${novoStatus}".`);
       }
 
-      await buscarLocacoes(true);
+      await buscarLocacoes(true, true);
     } catch (err) {
       console.error("Erro ao atualizar status:", err);
 
@@ -493,9 +501,16 @@ export default function Locacoes() {
 
       <div className="rounded-2xl bg-white p-6 shadow-sm max-h-[62vh] md:h-[78vh] md:max-h-none flex flex-col">
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-          <h2 className="text-xl font-semibold text-slate-800">
-            Pedidos de locação
-          </h2>
+          <div>
+            <h2 className="text-xl font-semibold text-slate-800">
+              Pedidos de locação
+            </h2>
+            {atualizandoLista && (
+              <p className="mt-1 text-sm text-slate-500">
+                Atualizando pedidos...
+              </p>
+            )}
+          </div>
 
           <div className="flex flex-col gap-3 md:flex-row">
             <select
@@ -512,16 +527,16 @@ export default function Locacoes() {
             </select>
 
             <button
-              onClick={() => buscarLocacoes(true)}
-              disabled={carregando}
+              onClick={() => buscarLocacoes(true, true)}
+              disabled={atualizandoLista}
               className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-60"
             >
-              {carregando ? "Atualizando..." : "Atualizar"}
+              {atualizandoLista ? "Atualizando..." : "Atualizar"}
             </button>
           </div>
         </div>
 
-        {carregando ? (
+        {carregandoInicial ? (
           <div className="mt-6 text-slate-600">Carregando locações...</div>
         ) : locacoesAgrupadasPorMes.length === 0 ? (
           <div className="mt-6 rounded-2xl border border-dashed border-slate-300 p-6 text-slate-500">
