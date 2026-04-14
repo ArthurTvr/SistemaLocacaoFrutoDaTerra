@@ -72,6 +72,9 @@ function obterTituloMes(dataRetirada) {
 
 export default function Locacoes() {
   const ativoRef = useRef(true);
+  const audioRef = useRef(null);
+  const ultimoIdRef = useRef(null);
+  const primeiraCargaRef = useRef(true);
 
   const [locacoes, setLocacoes] = useState([]);
   const [carregando, setCarregando] = useState(true);
@@ -85,12 +88,17 @@ export default function Locacoes() {
     ativoRef.current = true;
     buscarLocacoes();
 
+    const intervalo = setInterval(() => {
+      buscarLocacoes(false);
+    }, 15000);
+
     return () => {
       ativoRef.current = false;
+      clearInterval(intervalo);
     };
   }, []);
 
-  async function buscarLocacoes() {
+  async function buscarLocacoes(forcarSilencio = false) {
     if (ativoRef.current) {
       setCarregando(true);
       setErro("");
@@ -133,15 +141,42 @@ export default function Locacoes() {
             )
           `,
           )
-          .order("data_retirada", { ascending: false })
-          .order("created_at", { ascending: false }),
+          .order("id", { ascending: false }),
         30000,
       );
 
       if (error) throw error;
 
+      const novaLista = data || [];
+
+      if (novaLista.length > 0) {
+        const maiorIdAtual = novaLista[0].id;
+
+        if (primeiraCargaRef.current) {
+          ultimoIdRef.current = maiorIdAtual;
+          primeiraCargaRef.current = false;
+        } else if (
+          !forcarSilencio &&
+          ultimoIdRef.current !== null &&
+          maiorIdAtual > ultimoIdRef.current
+        ) {
+          ultimoIdRef.current = maiorIdAtual;
+
+          try {
+            await audioRef.current?.play();
+          } catch (audioErr) {
+            console.warn(
+              "Não foi possível tocar o som automaticamente.",
+              audioErr,
+            );
+          }
+        } else {
+          ultimoIdRef.current = maiorIdAtual;
+        }
+      }
+
       if (ativoRef.current) {
-        setLocacoes(data || []);
+        setLocacoes(novaLista);
       }
     } catch (err) {
       console.error("Erro ao buscar locações:", err);
@@ -180,7 +215,7 @@ export default function Locacoes() {
         setMensagem(`Locação atualizada para "${novoStatus}".`);
       }
 
-      await buscarLocacoes();
+      await buscarLocacoes(true);
     } catch (err) {
       console.error("Erro ao atualizar status:", err);
 
@@ -403,6 +438,10 @@ export default function Locacoes() {
 
   return (
     <div className="space-y-6">
+      <audio ref={audioRef} preload="auto">
+        <source src="/notificacao.mp3" type="audio/mpeg" />
+      </audio>
+
       <div className="rounded-3xl bg-white p-6 shadow-sm">
         <h1 className="text-3xl font-bold text-slate-800">Locações</h1>
         <p className="mt-2 text-slate-600">
@@ -473,7 +512,7 @@ export default function Locacoes() {
             </select>
 
             <button
-              onClick={buscarLocacoes}
+              onClick={() => buscarLocacoes(true)}
               disabled={carregando}
               className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-60"
             >
