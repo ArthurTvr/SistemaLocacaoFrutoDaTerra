@@ -130,6 +130,7 @@ export default function Locacoes() {
             cliente:clientes_locacao (
               id,
               nome,
+              cpf,
               telefone
             ),
             itens_locacao (
@@ -353,6 +354,7 @@ export default function Locacoes() {
 
           <div class="bloco">
             <div class="linha"><span class="forte">Cliente:</span> ${locacao.cliente?.nome || "-"}</div>
+            <div class="linha"><span class="forte">CPF:</span> ${locacao.cliente?.cpf || "-"}</div>
             <div class="linha"><span class="forte">Telefone:</span> ${locacao.cliente?.telefone || "-"}</div>
             <div class="linha"><span class="forte">Retirada:</span> ${formatarData(locacao.data_retirada)}</div>
             <div class="linha"><span class="forte">Devolução:</span> ${formatarData(locacao.data_devolucao)}</div>
@@ -567,6 +569,10 @@ export default function Locacoes() {
                         </h3>
 
                         <p className="text-sm text-slate-600">
+                          CPF: {locacao.cliente?.cpf || "-"}
+                        </p>
+
+                        <p className="text-sm text-slate-600">
                           Telefone: {locacao.cliente?.telefone || "-"}
                         </p>
 
@@ -674,6 +680,10 @@ export default function Locacoes() {
                 <p>
                   <span className="font-semibold text-slate-800">Cliente:</span>{" "}
                   {locacaoSelecionada.cliente?.nome || "-"}
+                </p>
+                <p>
+                  <span className="font-semibold text-slate-800">CPF:</span>{" "}
+                  {locacaoSelecionada.cliente?.cpf || "-"}
                 </p>
                 <p>
                   <span className="font-semibold text-slate-800">
