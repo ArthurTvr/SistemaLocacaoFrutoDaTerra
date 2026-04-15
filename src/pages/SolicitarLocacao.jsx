@@ -16,6 +16,8 @@ const FORM_INICIAL = {
   data_devolucao: "",
   forma_pagamento: "pix",
   observacoes: "",
+  vem_com_agencia: "nao",
+  nome_agencia: "",
 };
 
 function limparCpf(valor) {
@@ -364,15 +366,25 @@ export default function SolicitarLocacao() {
   function handleChange(e) {
     const { name, value } = e.target;
 
-    setForm((prev) => ({
-      ...prev,
-      [name]:
+    setForm((prev) => {
+      const novoValor =
         name === "telefone"
           ? formatarTelefone(value)
           : name === "cpf"
             ? formatarCpf(value)
-            : value,
-    }));
+            : value;
+
+      const novoForm = {
+        ...prev,
+        [name]: novoValor,
+      };
+
+      if (name === "vem_com_agencia" && value === "nao") {
+        novoForm.nome_agencia = "";
+      }
+
+      return novoForm;
+    });
   }
 
   function abrirModalProduto(produto) {
@@ -518,6 +530,9 @@ export default function SolicitarLocacao() {
       mostrarErro("Informe seu nome.");
       return;
     }
+    if (form.vem_com_agencia === "sim" && !form.nome_agencia.trim()) {
+      mostrarErro("Informe o nome da agência");
+    }
 
     if (cpfLimpo.length !== 11) {
       mostrarErro("Informe um CPF válido.");
@@ -608,6 +623,9 @@ export default function SolicitarLocacao() {
             observacoes: form.observacoes.trim() || null,
             valor_total: totalLocacao,
             status: "solicitado",
+            vem_com_agencia: form.vem_com_agencia === "sim",
+            nome_agencia:
+              form.vem_com_agencia === "sim" ? form.nome_agencia.trim() : null,
           })
           .select()
           .single(),
@@ -724,7 +742,9 @@ export default function SolicitarLocacao() {
                 type="button"
                 onClick={abrirWhatsAppApartamentos}
                 className="rounded-2xl border border-white/30 bg-white/10 px-5 py-3 text-sm font-semibold text-white backdrop-blur-sm transition hover:bg-white/20"
-              >Para aluguel de apartamentos clique aqui</button>
+              >
+                Para aluguel de apartamentos clique aqui
+              </button>
             </div>
           </div>
         </div>
@@ -1051,6 +1071,37 @@ export default function SolicitarLocacao() {
                   </div>
                 </div>
 
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-slate-700">
+                    Vem com agência de turismo?
+                  </label>
+                  <select
+                    name="vem_com_agencia"
+                    value={form.vem_com_agencia}
+                    onChange={handleChange}
+                    className="w-full rounded-2xl border border-slate-300 px-4 py-3 outline-none focus:border-emerald-500"
+                  >
+                    <option value="nao">Não</option>
+                    <option value="sim">Sim</option>
+                  </select>
+                </div>
+
+                {form.vem_com_agencia === "sim" && (
+                  <div>
+                    <label className="mb-1 block text-sm font-medium text-slate-700">
+                      Nome da agência
+                    </label>
+                    <input
+                      type="text"
+                      name="nome_agencia"
+                      value={form.nome_agencia}
+                      onChange={handleChange}
+                      className="w-full rounded-2xl border border-slate-300 px-4 py-3 outline-none focus:border-emerald-500"
+                      placeholder="Digite o nome da agência"
+                    />
+                  </div>
+                )}
+
                 <div className="flex gap-3">
                   <button
                     type="button"
@@ -1197,6 +1248,13 @@ export default function SolicitarLocacao() {
                 <p className="text-lg font-bold text-emerald-700">
                   Entrada (50%): {formatarMoeda(metadeTotal)}
                 </p>
+                <p>
+                  Agência de turismo:{" "}
+                  {form.vem_com_agencia === "sim" ? "Sim" : "Não"}
+                </p>
+                {form.vem_com_agencia === "sim" && (
+                  <p>Nome da agência: {form.nome_agencia || "-"}</p>
+                )}
               </div>
             </div>
           </div>

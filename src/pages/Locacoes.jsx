@@ -127,6 +127,8 @@ export default function Locacoes() {
             status,
             created_at,
             entregue_em,
+            vem_com_agencia,
+            nome_agencia,
             cliente:clientes_locacao (
               id,
               nome,
@@ -361,6 +363,8 @@ export default function Locacoes() {
             <div class="linha"><span class="forte">Telefone:</span> ${locacao.cliente?.telefone || "-"}</div>
             <div class="linha"><span class="forte">Retirada:</span> ${formatarData(locacao.data_retirada)}</div>
             <div class="linha"><span class="forte">Devolução:</span> ${formatarData(locacao.data_devolucao)}</div>
+            <div class="linha"><span class="forte">Agência:</span> ${locacao.vem_com_agencia ? "Sim" : "Não"}</div>
+${locacao.vem_com_agencia ? `<div class="linha"><span class="forte">Nome da agência:</span> ${locacao.nome_agencia || "-"}</div>` : ""}
             <div class="linha"><span class="forte">Pagamento:</span> ${formatarFormaPagamento(locacao.forma_pagamento)}</div>
             <div class="linha"><span class="forte">Status:</span> ${locacao.status}</div>
           </div>
@@ -594,7 +598,15 @@ export default function Locacoes() {
                           Pagamento:{" "}
                           {formatarFormaPagamento(locacao.forma_pagamento)}
                         </p>
+                        <p className="text-sm text-slate-600">
+                          Agência: {locacao.vem_com_agencia ? "Sim" : "Não"}
+                        </p>
 
+                        {locacao.vem_com_agencia && (
+                          <p className="text-sm text-slate-600">
+                            Nome da agência: {locacao.nome_agencia || "-"}
+                          </p>
+                        )}
                         <p className="text-sm text-slate-600">
                           Criado em: {formatarDataHora(locacao.created_at)}
                         </p>
@@ -715,6 +727,18 @@ export default function Locacoes() {
                   </span>{" "}
                   {formatarFormaPagamento(locacaoSelecionada.forma_pagamento)}
                 </p>
+                <p>
+                  <span className="font-semibold text-slate-800">Agência:</span>{" "}
+                  {locacaoSelecionada.vem_com_agencia ? "Sim" : "Não"}
+                </p>
+                {locacaoSelecionada.vem_com_agencia && (
+                  <p>
+                    <span className="font-semibold text-slate-800">
+                      Nome da agência:
+                    </span>{" "}
+                    {locacaoSelecionada.nome_agencia || "-"}
+                  </p>
+                )}
                 <p>
                   <span className="font-semibold text-slate-800">Status:</span>{" "}
                   {locacaoSelecionada.status}
