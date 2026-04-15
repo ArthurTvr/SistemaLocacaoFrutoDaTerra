@@ -1062,11 +1062,11 @@ export default function SolicitarLocacao() {
                   </p>
                 </div>
 
-                <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-4">
-                  <p className="text-sm text-amber-700">
-                    Valor de 50% para confirmar a reserva
+                <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-4">
+                  <p className="text-sm text-emerald-700 font-bold">
+                    Entrada de 50% para confirmar a reserva
                   </p>
-                  <p className="text-2xl font-bold text-amber-900">
+                  <p className="text-2xl font-bold text-emerald-900">
                     {formatarMoeda(metadeTotal)}
                   </p>
                 </div>
