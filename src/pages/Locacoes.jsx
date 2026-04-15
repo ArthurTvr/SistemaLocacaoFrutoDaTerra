@@ -266,6 +266,9 @@ export default function Locacoes() {
       })
       .join("");
 
+    const entradaReserva = Number(locacao.valor_total || 0) / 2;
+    const restantePagar = Number(locacao.valor_total || 0) - entradaReserva;
+
     const html = `
     <html>
       <head>
@@ -374,7 +377,10 @@ export default function Locacoes() {
           <div class="total">
             TOTAL: ${formatarMoeda(locacao.valor_total)}
           </div>
-
+          <div class="bloco">
+             <div class="linha forte">Entrada (50%):${formatarMoeda(entradaReserva)}</div>
+              <div class="linha forte">Restante a pagar: ${formatarMoeda(restantePagar)}</div>
+          </div>
           ${
             locacao.observacoes
               ? `

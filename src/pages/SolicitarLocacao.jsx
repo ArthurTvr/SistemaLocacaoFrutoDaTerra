@@ -6,6 +6,7 @@ import logo from "../assets/images/logo.png";
 const PIX_KEY = "61.282.940/0001-05";
 const BENEFICIARIO_PIX = "Dalmes Dutra Cardoso Junior";
 const WHATSAPP_FRUTO_DA_TERRA = "5532984841653";
+const WHATSAPP_APARTAMENTOS = "5532984841653";
 
 const FORM_INICIAL = {
   nome: "",
@@ -107,6 +108,14 @@ function agruparPorCategoria(equipamentos) {
     acc[categoria].push(equipamento);
     return acc;
   }, {});
+}
+
+function abrirWhatsAppApartamentos() {
+  const mensagem =
+    "Olá! Tenho interesse em aluguel de apartamentos e gostaria de mais informações.";
+
+  const url = `https://wa.me/${WHATSAPP_APARTAMENTOS}?text=${encodeURIComponent(mensagem)}`;
+  window.open(url, "_blank");
 }
 
 function gerarMensagemWhatsAppPedido({
@@ -710,6 +719,13 @@ export default function SolicitarLocacao() {
               Explore o catálogo, monte seu carrinho e finalize sua solicitação
               em poucos passos.
             </p>
+            <div className="mt-6 flex justify-center">
+              <button
+                type="button"
+                onClick={abrirWhatsAppApartamentos}
+                className="rounded-2xl border border-white/30 bg-white/10 px-5 py-3 text-sm font-semibold text-white backdrop-blur-sm transition hover:bg-white/20"
+              >Para aluguel de apartamentos clique aqui</button>
+            </div>
           </div>
         </div>
       </section>
