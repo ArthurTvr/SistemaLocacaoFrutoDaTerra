@@ -1023,7 +1023,7 @@ export default function SolicitarLocacao() {
 
         {etapaAtual === 3 && (
           <div className="grid gap-6 xl:grid-cols-[1fr_360px]">
-            <div className="rounded-3xl bg-white p-5 shadow-sm sm:p-6">
+            <div className="order-2 xl:order-1 rounded-3xl bg-white p-5 shadow-sm sm:p-6">
               <h2 className="text-xl font-semibold text-slate-800">
                 Pagamento
               </h2>
@@ -1064,7 +1064,7 @@ export default function SolicitarLocacao() {
 
                 <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-4">
                   <p className="text-sm text-emerald-700 font-bold">
-                    Entrada de 50% para confirmar a reserva
+                    Entarda de 50% para confirmar a reserva
                   </p>
                   <p className="text-2xl font-bold text-emerald-900">
                     {formatarMoeda(metadeTotal)}
@@ -1113,7 +1113,7 @@ export default function SolicitarLocacao() {
               </div>
             </div>
 
-            <div className="rounded-3xl bg-white p-5 shadow-sm sm:p-6">
+            <div className="order-1 xl:order-2 rounded-3xl bg-white p-5 shadow-sm sm:p-6">
               <h2 className="text-xl font-semibold text-slate-800">
                 Resumo final
               </h2>
