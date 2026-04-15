@@ -4,6 +4,8 @@ import { withTimeout } from "../lib/withTimeout";
 import logo from "../assets/images/logo.png";
 
 const PIX_KEY = "61.282.940/0001-05";
+const BENEFICIARIO_PIX = "Dalmes Dutra Cardoso Junior";
+const WHATSAPP_FRUTO_DA_TERRA = "5532988263667";
 
 const FORM_INICIAL = {
   nome: "",
@@ -86,6 +88,50 @@ function agruparPorCategoria(equipamentos) {
     acc[categoria].push(equipamento);
     return acc;
   }, {});
+}
+
+function gerarMensagemWhatsAppPedido({
+  numeroPedido,
+  clienteNome,
+  clienteTelefone,
+  dataRetirada,
+  dataDevolucao,
+  itens,
+  totalLocacao,
+  metadeTotal,
+  observacoes,
+}) {
+  const itensTexto = itens
+    .map((item) => {
+      const extras = [
+        item.tamanho ? `Tamanho: ${item.tamanho}` : null,
+        item.numeracao ? `Numeração: ${item.numeracao}` : null,
+      ]
+        .filter(Boolean)
+        .join(" | ");
+
+      return `- ${item.equipamento_nome} | Qtd: ${item.quantidade}${extras ? ` | ${extras}` : ""}`;
+    })
+    .join("\n");
+
+  return `Olá! Pedido de locação #${numeroPedido}
+
+Cliente: ${clienteNome}
+Telefone: ${clienteTelefone || "-"}
+Retirada: ${formatarData(dataRetirada)}
+Devolução: ${formatarData(dataDevolucao)}
+
+Itens:
+${itensTexto || "- Nenhum item"}
+
+Total: ${formatarMoeda(totalLocacao)}
+Entrada (50%): ${formatarMoeda(metadeTotal)}
+Pagamento: Pix
+Chave Pix: ${PIX_KEY}
+Beneficiário: ${BENEFICIARIO_PIX}
+${observacoes?.trim() ? `Observações: ${observacoes.trim()}` : "Observações: -"}
+
+Estarei enviando o comprovante abaixo.`;
 }
 
 export default function SolicitarLocacao() {
@@ -230,6 +276,23 @@ export default function SolicitarLocacao() {
       console.error("Erro ao copiar chave Pix:", err);
       mostrarErro("Não foi possível copiar a chave Pix.");
     }
+  }
+
+  function abrirWhatsAppComPedido(numeroPedido) {
+    const mensagemWhatsapp = gerarMensagemWhatsAppPedido({
+      numeroPedido,
+      clienteNome: form.nome.trim(),
+      clienteTelefone: form.telefone,
+      dataRetirada: form.data_retirada,
+      dataDevolucao: form.data_devolucao,
+      itens,
+      totalLocacao,
+      metadeTotal,
+      observacoes: form.observacoes,
+    });
+
+    const url = `https://wa.me/${WHATSAPP_FRUTO_DA_TERRA}?text=${encodeURIComponent(mensagemWhatsapp)}`;
+    window.open(url, "_blank");
   }
 
   async function buscarEquipamentos() {
@@ -533,13 +596,18 @@ export default function SolicitarLocacao() {
 
       if (erroItens) throw erroItens;
 
+      const numeroPedido =
+        locacaoCriada.numero_pedido || locacaoCriada.id || "-";
+
       if (ativoRef.current) {
         setMensagem(
-          "Solicitação enviada com sucesso! Em breve entraremos em contato.",
+          `Pedido #${numeroPedido} enviado com sucesso! Agora envie o comprovante pelo WhatsApp.`,
         );
         setEtapaAtual(4);
         irParaTopo();
       }
+
+      abrirWhatsAppComPedido(numeroPedido);
     } catch (err) {
       console.error("Erro ao salvar locação:", err);
 
@@ -974,7 +1042,9 @@ export default function SolicitarLocacao() {
                     {PIX_KEY}
                   </p>
 
-                  <p className="text-sm text-slate-500">Beneficiário: Dalmes Dutra Cardoso Junior</p>
+                  <p className="text-sm text-slate-500">
+                    Beneficiário: {BENEFICIARIO_PIX}
+                  </p>
 
                   <button
                     type="button"
@@ -1002,9 +1072,8 @@ export default function SolicitarLocacao() {
                 </div>
 
                 <div className="rounded-2xl border border-blue-200 bg-blue-50 px-4 py-4 text-sm text-blue-800">
-                  Após o pagamento dos 50% do valor, favor enviar o comprovante para o número{" "}
-                  <span className="font-bold">(32) 8484-1653</span>, que seu
-                  pedido será confirmado.
+                  Após o pagamento dos 50% do valor, favor enviar o comprovante
+                  para a Fruto da Terra, que seu pedido será confirmado.
                 </div>
 
                 <div>
@@ -1036,7 +1105,9 @@ export default function SolicitarLocacao() {
                     disabled={salvando}
                     className="flex-1 rounded-2xl bg-emerald-500 px-4 py-3 font-semibold text-white hover:bg-emerald-600 disabled:opacity-60"
                   >
-                    {salvando ? "Enviando..." : "Confirmar pedido"}
+                    {salvando
+                      ? "Enviando..."
+                      : "Confirmar pedido e enviar comprovante"}
                   </button>
                 </div>
               </div>
@@ -1070,8 +1141,8 @@ export default function SolicitarLocacao() {
               Pedido enviado com sucesso
             </h2>
             <p className="mt-3 text-slate-600">
-              Recebemos sua solicitação. Após o envio do comprovante Pix, seu
-              pedido será confirmado.
+              Seu pedido foi salvo. O WhatsApp foi aberto para você enviar o
+              comprovante e concluir a solicitação.
             </p>
 
             <div className="mt-6 flex justify-center">
