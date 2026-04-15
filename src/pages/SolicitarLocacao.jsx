@@ -9,12 +9,31 @@ const WHATSAPP_FRUTO_DA_TERRA = "5532984841653";
 
 const FORM_INICIAL = {
   nome: "",
+  cpf: "",
   telefone: "",
   data_retirada: "",
   data_devolucao: "",
   forma_pagamento: "pix",
   observacoes: "",
 };
+
+function limparCpf(valor) {
+  return String(valor || "").replace(/\D/g, "");
+}
+
+function formatarCpf(valor) {
+  const numeros = limparCpf(valor).slice(0, 11);
+
+  if (numeros.length <= 3) return numeros;
+  if (numeros.length <= 6) {
+    return `${numeros.slice(0, 3)}.${numeros.slice(3)}`;
+  }
+  if (numeros.length <= 9) {
+    return `${numeros.slice(0, 3)}.${numeros.slice(3, 6)}.${numeros.slice(6)}`;
+  }
+
+  return `${numeros.slice(0, 3)}.${numeros.slice(3, 6)}.${numeros.slice(6, 9)}-${numeros.slice(9)}`;
+}
 
 function formatarData(data) {
   if (!data) return "-";
@@ -93,6 +112,7 @@ function agruparPorCategoria(equipamentos) {
 function gerarMensagemWhatsAppPedido({
   numeroPedido,
   clienteNome,
+  clienteCpf,
   clienteTelefone,
   dataRetirada,
   dataDevolucao,
@@ -117,6 +137,7 @@ function gerarMensagemWhatsAppPedido({
   return `Olá! Pedido de locação #${numeroPedido}
 
 Cliente: ${clienteNome}
+CPF: ${clienteCpf || "-"}
 Telefone: ${clienteTelefone || "-"}
 Retirada: ${formatarData(dataRetirada)}
 Devolução: ${formatarData(dataDevolucao)}
@@ -131,7 +152,7 @@ Chave Pix: ${PIX_KEY}
 Beneficiário: ${BENEFICIARIO_PIX}
 ${observacoes?.trim() ? `Observações: ${observacoes.trim()}` : "Observações: -"}
 
-Estarei enviando o comprovante abaixo.`;
+Estarei enviando o comprovante pix abaixo.`;
 }
 
 export default function SolicitarLocacao() {
@@ -282,6 +303,7 @@ export default function SolicitarLocacao() {
     const mensagemWhatsapp = gerarMensagemWhatsAppPedido({
       numeroPedido,
       clienteNome: form.nome.trim(),
+      clienteCpf: form.cpf,
       clienteTelefone: form.telefone,
       dataRetirada: form.data_retirada,
       dataDevolucao: form.data_devolucao,
@@ -335,7 +357,12 @@ export default function SolicitarLocacao() {
 
     setForm((prev) => ({
       ...prev,
-      [name]: name === "telefone" ? formatarTelefone(value) : value,
+      [name]:
+        name === "telefone"
+          ? formatarTelefone(value)
+          : name === "cpf"
+            ? formatarCpf(value)
+            : value,
     }));
   }
 
@@ -475,10 +502,16 @@ export default function SolicitarLocacao() {
   }
 
   function irParaEtapaPagamento() {
+    const cpfLimpo = limparCpf(form.cpf);
     const telefoneLimpo = limparTelefone(form.telefone);
 
     if (!form.nome.trim()) {
       mostrarErro("Informe seu nome.");
+      return;
+    }
+
+    if (cpfLimpo.length !== 11) {
+      mostrarErro("Informe um CPF válido.");
       return;
     }
 
@@ -509,13 +542,14 @@ export default function SolicitarLocacao() {
   }
 
   async function buscarOuCriarCliente() {
+    const cpfLimpo = limparCpf(form.cpf);
     const telefoneLimpo = limparTelefone(form.telefone);
 
     const { data: clienteExistente, error: erroBusca } = await withTimeout(
       supabase
         .from("clientes_locacao")
         .select("*")
-        .eq("telefone", telefoneLimpo)
+        .eq("cpf", cpfLimpo)
         .maybeSingle(),
       30000,
     );
@@ -531,6 +565,7 @@ export default function SolicitarLocacao() {
         .from("clientes_locacao")
         .insert({
           nome: form.nome.trim(),
+          cpf: cpfLimpo,
           telefone: telefoneLimpo || null,
         })
         .select()
@@ -944,6 +979,21 @@ export default function SolicitarLocacao() {
 
                 <div>
                   <label className="mb-1 block text-sm font-medium text-slate-700">
+                    CPF
+                  </label>
+                  <input
+                    type="text"
+                    name="cpf"
+                    value={form.cpf}
+                    onChange={handleChange}
+                    inputMode="numeric"
+                    className="w-full rounded-2xl border border-slate-300 px-4 py-3 outline-none focus:border-emerald-500"
+                    placeholder="000.000.000-00"
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-slate-700">
                     Telefone
                   </label>
                   <input
@@ -1064,7 +1114,7 @@ export default function SolicitarLocacao() {
 
                 <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-4">
                   <p className="text-sm text-emerald-700 font-bold">
-                    Entarda de 50% para confirmar a reserva
+                    Entrada de 50% para confirmar a reserva
                   </p>
                   <p className="text-2xl font-bold text-emerald-900">
                     {formatarMoeda(metadeTotal)}
@@ -1120,6 +1170,7 @@ export default function SolicitarLocacao() {
 
               <div className="mt-4 space-y-3 text-sm text-slate-600">
                 <p>Cliente: {form.nome || "-"}</p>
+                <p>CPF: {form.cpf || "-"}</p>
                 <p>Telefone: {form.telefone || "-"}</p>
                 <p>Retirada: {formatarData(form.data_retirada)}</p>
                 <p>Devolução: {formatarData(form.data_devolucao)}</p>
