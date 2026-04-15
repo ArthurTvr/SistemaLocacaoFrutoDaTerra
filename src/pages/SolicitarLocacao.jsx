@@ -5,7 +5,7 @@ import logo from "../assets/images/logo.png";
 
 const PIX_KEY = "61.282.940/0001-05";
 const BENEFICIARIO_PIX = "Dalmes Dutra Cardoso Junior";
-const WHATSAPP_FRUTO_DA_TERRA = "5533988263667";
+const WHATSAPP_FRUTO_DA_TERRA = "5532984841653";
 
 const FORM_INICIAL = {
   nome: "",
