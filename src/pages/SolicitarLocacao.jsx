@@ -1189,8 +1189,12 @@ export default function SolicitarLocacao() {
                 </div>
 
                 <div className="rounded-2xl border border-blue-200 bg-blue-50 px-4 py-4 text-sm text-blue-800">
-                  Após o pagamento dos 50% do valor, favor enviar o comprovante
-                  para a Fruto da Terra, que seu pedido será confirmado.
+                  Após o pagamento dos <span className="font-bold">50% do valor</span>, favor enviar o comprovante
+                  para a Fruto da Terra, que seu pedido será confirmado. <br />{" "}
+                  <span className="font-bold">
+                    (VALOR NÃO REEMBOLSÁVEL. O SALDO PODERÁ SER UTILIZADO
+                    DURANTE A TEMPORADA, ATÉ OUTUBRO DE 2026)
+                  </span>
                 </div>
 
                 <div>
@@ -1242,12 +1246,6 @@ export default function SolicitarLocacao() {
                 <p>Retirada: {formatarData(form.data_retirada)}</p>
                 <p>Devolução: {formatarData(form.data_devolucao)}</p>
                 <p>Diárias: {quantidadeDias}</p>
-                <p className="text-lg font-bold text-slate-800">
-                  Total: {formatarMoeda(totalLocacao)}
-                </p>
-                <p className="text-lg font-bold text-emerald-700">
-                  Entrada (50%): {formatarMoeda(metadeTotal)}
-                </p>
                 <p>
                   Agência de turismo:{" "}
                   {form.vem_com_agencia === "sim" ? "Sim" : "Não"}
@@ -1255,6 +1253,12 @@ export default function SolicitarLocacao() {
                 {form.vem_com_agencia === "sim" && (
                   <p>Nome da agência: {form.nome_agencia || "-"}</p>
                 )}
+                <p className="text-lg font-bold text-slate-800">
+                  Total: {formatarMoeda(totalLocacao)}
+                </p>
+                <p className="text-lg font-bold text-emerald-700">
+                  Entrada (50%): {formatarMoeda(metadeTotal)}
+                </p>
               </div>
             </div>
           </div>
