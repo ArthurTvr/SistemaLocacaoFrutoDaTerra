@@ -1053,7 +1053,7 @@ export default function SolicitarLocacao() {
                       name="data_retirada"
                       value={form.data_retirada}
                       onChange={handleChange}
-                      className="block w-full min-w-0 max-w-full rounded-2xl border border-slate-300 px-4 py-3 outline-none focus:border-emerald-500"
+                      className="block w-full min-w-0 max-w-full rounded-2xl border border-slate-300 px-4 py-3 outline-none appearance-none focus:border-emerald-500"
                     />
                   </div>
 
@@ -1066,7 +1066,7 @@ export default function SolicitarLocacao() {
                       name="data_devolucao"
                       value={form.data_devolucao}
                       onChange={handleChange}
-                      className="block w-full min-w-0 max-w-full rounded-2xl border border-slate-300 px-4 py-3 outline-none focus:border-emerald-500"
+                      className="block w-full min-w-0 max-w-full rounded-2xl border border-slate-300 px-4 py-3 outline-none appearance-none focus:border-emerald-500"
                     />
                   </div>
                 </div>
