@@ -70,11 +70,18 @@ function obterTituloMes(dataRetirada) {
   });
 }
 
+function obterOrdemMes(dataRetirada) {
+  if (!dataRetirada) return Number.MAX_SAFE_INTEGER;
+  const [ano, mes] = dataRetirada.split("-").map(Number);
+  return ano * 100 + mes;
+}
+
 export default function Locacoes() {
   const ativoRef = useRef(true);
   const audioRef = useRef(null);
   const ultimoIdRef = useRef(null);
   const primeiraCargaRef = useRef(true);
+  const timeoutDestaqueRef = useRef(null);
 
   const [locacoes, setLocacoes] = useState([]);
   const [carregandoInicial, setCarregandoInicial] = useState(true);
@@ -84,6 +91,8 @@ export default function Locacoes() {
   const [filtroStatus, setFiltroStatus] = useState("");
   const [locacaoSelecionada, setLocacaoSelecionada] = useState(null);
   const [atualizandoStatusId, setAtualizandoStatusId] = useState(null);
+  const [mesesAbertos, setMesesAbertos] = useState({});
+  const [idsDestacados, setIdsDestacados] = useState([]);
 
   useEffect(() => {
     ativoRef.current = true;
@@ -91,11 +100,14 @@ export default function Locacoes() {
 
     const intervalo = setInterval(() => {
       buscarLocacoes(false, true);
-    }, 15000);
+    }, 30000);
 
     return () => {
       ativoRef.current = false;
       clearInterval(intervalo);
+      if (timeoutDestaqueRef.current) {
+        clearTimeout(timeoutDestaqueRef.current);
+      }
     };
   }, []);
 
@@ -171,6 +183,10 @@ export default function Locacoes() {
           ultimoIdRef.current !== null &&
           maiorIdAtual > ultimoIdRef.current
         ) {
+          const novosPedidos = novaLista.filter(
+            (locacao) => locacao.id > ultimoIdRef.current,
+          );
+
           ultimoIdRef.current = maiorIdAtual;
 
           try {
@@ -180,6 +196,32 @@ export default function Locacoes() {
               "Não foi possível tocar o som automaticamente.",
               audioErr,
             );
+          }
+
+          if (novosPedidos.length > 0) {
+            const idsNovos = novosPedidos.map((pedido) => pedido.id);
+            setIdsDestacados(idsNovos);
+
+            const mesesNovos = novosPedidos.reduce((acc, pedido) => {
+              const chave = pedido.data_retirada
+                ? obterChaveMes(pedido.data_retirada)
+                : null;
+              if (chave) acc[chave] = true;
+              return acc;
+            }, {});
+
+            setMesesAbertos((prev) => ({
+              ...prev,
+              ...mesesNovos,
+            }));
+
+            if (timeoutDestaqueRef.current) {
+              clearTimeout(timeoutDestaqueRef.current);
+            }
+
+            timeoutDestaqueRef.current = setTimeout(() => {
+              setIdsDestacados([]);
+            }, 6000);
           }
         } else {
           ultimoIdRef.current = maiorIdAtual;
@@ -201,6 +243,13 @@ export default function Locacoes() {
         setAtualizandoLista(false);
       }
     }
+  }
+
+  function alternarMes(chave) {
+    setMesesAbertos((prev) => ({
+      ...prev,
+      [chave]: !prev[chave],
+    }));
   }
 
   async function atualizarStatus(locacaoId, novoStatus) {
@@ -361,10 +410,10 @@ export default function Locacoes() {
             <div class="linha"><span class="forte">Cliente:</span> ${locacao.cliente?.nome || "-"}</div>
             <div class="linha"><span class="forte">CPF:</span> ${locacao.cliente?.cpf || "-"}</div>
             <div class="linha"><span class="forte">Telefone:</span> ${locacao.cliente?.telefone || "-"}</div>
+            <div class="linha"><span class="forte">Agência:</span> ${locacao.vem_com_agencia ? "Sim" : "Não"}</div>
+            ${locacao.vem_com_agencia ? `<div class="linha"><span class="forte">Nome da agência:</span> ${locacao.nome_agencia || "-"}</div>` : ""}
             <div class="linha"><span class="forte">Retirada:</span> ${formatarData(locacao.data_retirada)}</div>
             <div class="linha"><span class="forte">Devolução:</span> ${formatarData(locacao.data_devolucao)}</div>
-            <div class="linha"><span class="forte">Agência:</span> ${locacao.vem_com_agencia ? "Sim" : "Não"}</div>
-${locacao.vem_com_agencia ? `<div class="linha"><span class="forte">Nome da agência:</span> ${locacao.nome_agencia || "-"}</div>` : ""}
             <div class="linha"><span class="forte">Pagamento:</span> ${formatarFormaPagamento(locacao.forma_pagamento)}</div>
             <div class="linha"><span class="forte">Status:</span> ${locacao.status}</div>
           </div>
@@ -381,10 +430,12 @@ ${locacao.vem_com_agencia ? `<div class="linha"><span class="forte">Nome da agê
           <div class="total">
             TOTAL: ${formatarMoeda(locacao.valor_total)}
           </div>
+
           <div class="bloco">
-             <div class="linha forte">Entrada (50%):${formatarMoeda(entradaReserva)}</div>
-              <div class="linha forte">Restante a pagar: ${formatarMoeda(restantePagar)}</div>
+            <div class="linha forte">Entrada (50%): ${formatarMoeda(entradaReserva)}</div>
+            <div class="linha forte">Restante a pagar: ${formatarMoeda(restantePagar)}</div>
           </div>
+
           ${
             locacao.observacoes
               ? `
@@ -431,11 +482,13 @@ ${locacao.vem_com_agencia ? `<div class="linha"><span class="forte">Nome da agê
     const grupos = locacoesFiltradas.reduce((acc, locacao) => {
       const chave = obterChaveMes(locacao.data_retirada);
       const titulo = obterTituloMes(locacao.data_retirada);
+      const ordem = obterOrdemMes(locacao.data_retirada);
 
       if (!acc[chave]) {
         acc[chave] = {
           chave,
           titulo,
+          ordem,
           itens: [],
         };
       }
@@ -444,7 +497,7 @@ ${locacao.vem_com_agencia ? `<div class="linha"><span class="forte">Nome da agê
       return acc;
     }, {});
 
-    return Object.values(grupos).sort((a, b) => b.chave.localeCompare(a.chave));
+    return Object.values(grupos).sort((a, b) => a.ordem - b.ordem);
   }, [locacoesFiltradas]);
 
   const resumo = useMemo(() => {
@@ -481,7 +534,7 @@ ${locacao.vem_com_agencia ? `<div class="linha"><span class="forte">Nome da agê
         </div>
       )}
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-4 xl:grid-cols-4">
         <div className="rounded-2xl bg-white p-5 shadow-sm">
           <p className="text-sm text-slate-500">Total de locações</p>
           <h2 className="mt-2 text-2xl font-bold text-slate-800">
@@ -511,8 +564,8 @@ ${locacao.vem_com_agencia ? `<div class="linha"><span class="forte">Nome da agê
         </div>
       </div>
 
-      <div className="rounded-2xl bg-white p-6 shadow-sm max-h-[62vh] md:h-[78vh] md:max-h-none flex flex-col">
-        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+      <div className="rounded-2xl bg-white p-6 shadow-sm h-[86vh] flex flex-col">
+        <div className="flex items-center justify-between gap-4">
           <div>
             <h2 className="text-xl font-semibold text-slate-800">
               Pedidos de locação
@@ -524,7 +577,7 @@ ${locacao.vem_com_agencia ? `<div class="linha"><span class="forte">Nome da agê
             )}
           </div>
 
-          <div className="flex flex-col gap-3 md:flex-row">
+          <div className="flex items-center gap-3">
             <select
               value={filtroStatus}
               onChange={(e) => setFiltroStatus(e.target.value)}
@@ -555,125 +608,167 @@ ${locacao.vem_com_agencia ? `<div class="linha"><span class="forte">Nome da agê
             Nenhuma locação encontrada.
           </div>
         ) : (
-          <div className="mt-6 flex-1 space-y-6 overflow-y-auto pr-2">
-            {locacoesAgrupadasPorMes.map((grupo) => (
-              <div key={grupo.chave} className="space-y-4">
-                <div className="sticky top-0 z-10 rounded-2xl bg-slate-100 px-4 py-3">
-                  <h3 className="text-lg font-semibold capitalize text-slate-800">
-                    {grupo.titulo}
-                  </h3>
-                  <p className="text-sm text-slate-500">
-                    {grupo.itens.length} locação(ões)
-                  </p>
-                </div>
+          <div className="mt-6 flex-1 space-y-4 overflow-y-auto pr-2">
+            {locacoesAgrupadasPorMes.map((grupo) => {
+              const aberto = !!mesesAbertos[grupo.chave];
 
-                {grupo.itens.map((locacao) => (
-                  <div
-                    key={locacao.id}
-                    className="rounded-2xl border border-slate-200 p-4"
+              return (
+                <div
+                  key={grupo.chave}
+                  className="rounded-2xl border border-slate-200"
+                >
+                  <button
+                    type="button"
+                    onClick={() => alternarMes(grupo.chave)}
+                    className="flex w-full items-center justify-between rounded-2xl bg-slate-100 px-4 py-4 text-left hover:bg-slate-200"
                   >
-                    <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                      <div>
-                        <h3 className="text-lg font-semibold text-slate-800">
-                          {locacao.cliente?.nome || "Cliente não encontrado"}
-                        </h3>
-
-                        <p className="text-sm text-slate-600">
-                          CPF: {locacao.cliente?.cpf || "-"}
-                        </p>
-
-                        <p className="text-sm text-slate-600">
-                          Telefone: {locacao.cliente?.telefone || "-"}
-                        </p>
-
-                        <p className="text-sm text-slate-600">
-                          Retirada: {formatarData(locacao.data_retirada)}
-                        </p>
-
-                        <p className="text-sm text-slate-600">
-                          Devolução: {formatarData(locacao.data_devolucao)}
-                        </p>
-
-                        <p className="text-sm text-slate-600">
-                          Pagamento:{" "}
-                          {formatarFormaPagamento(locacao.forma_pagamento)}
-                        </p>
-                        <p className="text-sm text-slate-600">
-                          Agência: {locacao.vem_com_agencia ? "Sim" : "Não"}
-                        </p>
-
-                        {locacao.vem_com_agencia && (
-                          <p className="text-sm text-slate-600">
-                            Nome da agência: {locacao.nome_agencia || "-"}
-                          </p>
-                        )}
-                        <p className="text-sm text-slate-600">
-                          Criado em: {formatarDataHora(locacao.created_at)}
-                        </p>
-
-                        <div
-                          className={`mt-2 inline-flex rounded-full px-3 py-1 text-xs font-semibold ${classeStatus(
-                            locacao.status,
-                          )}`}
-                        >
-                          {locacao.status}
-                        </div>
-
-                        <p className="mt-3 text-base font-bold text-slate-800">
-                          Total: {formatarMoeda(locacao.valor_total)}
-                        </p>
-                      </div>
-
-                      <div className="min-w-[250px] space-y-2">
-                        <p className="text-sm font-medium text-slate-700">
-                          Alterar status
-                        </p>
-
-                        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                          {STATUS_OPTIONS.map((status) => (
-                            <button
-                              key={status}
-                              onClick={() =>
-                                atualizarStatus(locacao.id, status)
-                              }
-                              disabled={
-                                atualizandoStatusId === locacao.id ||
-                                locacao.status === status
-                              }
-                              className="rounded-xl border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
-                            >
-                              {status}
-                            </button>
-                          ))}
-                        </div>
-
-                        <div className="flex gap-2 pt-2">
-                          <button
-                            onClick={() => setLocacaoSelecionada(locacao)}
-                            className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800"
-                          >
-                            Ver detalhes
-                          </button>
-
-                          <button
-                            onClick={() => imprimirLocacao(locacao)}
-                            className="rounded-xl bg-emerald-500 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-600"
-                          >
-                            Imprimir
-                          </button>
-                        </div>
-                      </div>
+                    <div>
+                      <h3 className="text-lg font-semibold capitalize text-slate-800">
+                        {grupo.titulo}
+                      </h3>
+                      <p className="text-sm text-slate-500">
+                        {grupo.itens.length} locação(ões)
+                      </p>
                     </div>
 
-                    {locacao.observacoes && (
-                      <div className="mt-4 rounded-xl bg-amber-50 px-3 py-2 text-sm text-amber-700">
-                        Observações: {locacao.observacoes}
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            ))}
+                    <span className="text-xl text-slate-600">
+                      {aberto ? "−" : "+"}
+                    </span>
+                  </button>
+
+                  {aberto && (
+                    <div className="space-y-3 p-4">
+                      {grupo.itens.map((locacao) => {
+                        const pedidoNovo = idsDestacados.includes(locacao.id);
+
+                        return (
+                          <div
+                            key={locacao.id}
+                            className={`rounded-2xl border p-5 transition-all duration-500 ${
+                              pedidoNovo
+                                ? "border-emerald-400 bg-emerald-50 shadow-md ring-2 ring-emerald-200"
+                                : "border-slate-200 bg-white"
+                            }`}
+                          >
+                            <div className="flex items-start justify-between gap-6">
+                              <div className="min-w-0 flex-1">
+                                <div className="flex items-center gap-3">
+                                  <h3 className="text-lg font-semibold text-slate-800">
+                                    {locacao.cliente?.nome ||
+                                      "Cliente não encontrado"}
+                                  </h3>
+
+                                  {pedidoNovo && (
+                                    <span className="rounded-full bg-emerald-500 px-3 py-1 text-xs font-bold text-white">
+                                      NOVO
+                                    </span>
+                                  )}
+                                </div>
+
+                                <div className="mt-3 space-y-2 text-sm text-slate-600">
+                                  <p>CPF: {locacao.cliente?.cpf || "-"}</p>
+                                  <p>
+                                    Telefone: {locacao.cliente?.telefone || "-"}
+                                  </p>
+                                  <p>
+                                    Retirada:{" "}
+                                    {formatarData(locacao.data_retirada)}
+                                  </p>
+                                  <p>
+                                    Devolução:{" "}
+                                    {formatarData(locacao.data_devolucao)}
+                                  </p>
+                                  <p>
+                                    Pagamento:{" "}
+                                    {formatarFormaPagamento(
+                                      locacao.forma_pagamento,
+                                    )}
+                                  </p>
+                                  <p>
+                                    Agência:{" "}
+                                    {locacao.vem_com_agencia ? "Sim" : "Não"}
+                                  </p>
+                                  {locacao.vem_com_agencia && (
+                                    <p>
+                                      Nome da agência:{" "}
+                                      {locacao.nome_agencia || "-"}
+                                    </p>
+                                  )}
+                                  <p>
+                                    Criado em:{" "}
+                                    {formatarDataHora(locacao.created_at)}
+                                  </p>
+                                </div>
+
+                                <div
+                                  className={`mt-3 inline-flex rounded-full px-3 py-1 text-xs font-semibold ${classeStatus(
+                                    locacao.status,
+                                  )}`}
+                                >
+                                  {locacao.status}
+                                </div>
+
+                                <p className="mt-3 text-base font-bold text-slate-800">
+                                  Total: {formatarMoeda(locacao.valor_total)}
+                                </p>
+
+                                {locacao.observacoes && (
+                                  <div className="mt-4 rounded-xl bg-amber-50 px-3 py-2 text-sm text-amber-700">
+                                    Observações: {locacao.observacoes}
+                                  </div>
+                                )}
+                              </div>
+
+                              <div className="w-[280px] shrink-0 space-y-3">
+                                <p className="text-sm font-medium text-slate-700">
+                                  Alterar status
+                                </p>
+
+                                <div className="grid grid-cols-2 gap-2">
+                                  {STATUS_OPTIONS.map((status) => (
+                                    <button
+                                      key={status}
+                                      onClick={() =>
+                                        atualizarStatus(locacao.id, status)
+                                      }
+                                      disabled={
+                                        atualizandoStatusId === locacao.id ||
+                                        locacao.status === status
+                                      }
+                                      className="rounded-xl border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                                    >
+                                      {status}
+                                    </button>
+                                  ))}
+                                </div>
+
+                                <div className="flex gap-2 pt-2">
+                                  <button
+                                    onClick={() =>
+                                      setLocacaoSelecionada(locacao)
+                                    }
+                                    className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800"
+                                  >
+                                    Ver detalhes
+                                  </button>
+
+                                  <button
+                                    onClick={() => imprimirLocacao(locacao)}
+                                    className="rounded-xl bg-emerald-500 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-600"
+                                  >
+                                    Imprimir
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         )}
       </div>
@@ -710,6 +805,18 @@ ${locacao.vem_com_agencia ? `<div class="linha"><span class="forte">Nome da agê
                   {locacaoSelecionada.cliente?.telefone || "-"}
                 </p>
                 <p>
+                  <span className="font-semibold text-slate-800">Agência:</span>{" "}
+                  {locacaoSelecionada.vem_com_agencia ? "Sim" : "Não"}
+                </p>
+                {locacaoSelecionada.vem_com_agencia && (
+                  <p>
+                    <span className="font-semibold text-slate-800">
+                      Nome da agência:
+                    </span>{" "}
+                    {locacaoSelecionada.nome_agencia || "-"}
+                  </p>
+                )}
+                <p>
                   <span className="font-semibold text-slate-800">
                     Retirada:
                   </span>{" "}
@@ -727,18 +834,6 @@ ${locacao.vem_com_agencia ? `<div class="linha"><span class="forte">Nome da agê
                   </span>{" "}
                   {formatarFormaPagamento(locacaoSelecionada.forma_pagamento)}
                 </p>
-                <p>
-                  <span className="font-semibold text-slate-800">Agência:</span>{" "}
-                  {locacaoSelecionada.vem_com_agencia ? "Sim" : "Não"}
-                </p>
-                {locacaoSelecionada.vem_com_agencia && (
-                  <p>
-                    <span className="font-semibold text-slate-800">
-                      Nome da agência:
-                    </span>{" "}
-                    {locacaoSelecionada.nome_agencia || "-"}
-                  </p>
-                )}
                 <p>
                   <span className="font-semibold text-slate-800">Status:</span>{" "}
                   {locacaoSelecionada.status}
@@ -763,7 +858,7 @@ ${locacao.vem_com_agencia ? `<div class="linha"><span class="forte">Nome da agê
                     Nenhum item encontrado.
                   </p>
                 ) : (
-                  <div className="mt-4 space-y-3 max-h-[45vh] overflow-y-auto pr-2">
+                  <div className="mt-4 max-h-[45vh] space-y-3 overflow-y-auto pr-2">
                     {locacaoSelecionada.itens_locacao?.map((item) => (
                       <div
                         key={item.id}
